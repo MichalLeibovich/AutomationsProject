@@ -1,0 +1,55 @@
+# ---------- dependencies ----------
+node_modules/
+.pnp/
+.yarn/
+
+# ---------- build output ----------
+dist/
+build/
+*.tsbuildinfo
+
+# ---------- environment & secrets ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ---------- python ----------
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+
+# ---------- tooling caches ----------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.eslintcache
+
+# ---------- playwright / automation output ----------
+backend/automations/screenshots/*
+!backend/automations/screenshots/.gitkeep
+backend/automations/artifacts/
+backend/automations/reports/
+test-results/
+
+# ---------- logs ----------
+logs/
+*.log
+npm-debug.log*
+
+# ---------- database / docker volumes ----------
+pgdata/
+minio-data/
+
+# ---------- editors & OS ----------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
