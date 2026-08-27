@@ -99,7 +99,7 @@ export const Calendar = () => {
         ))}
       </div>
 
-      <div className={classes.grid} role="grid">
+      <div className={classes.dayGrid} role="grid">
         {cells.map((dayNumber, index) => {
           if (dayNumber === null) {
             return <div key={`pad-${index}`} className={classes.padCell} aria-hidden="true" />;
