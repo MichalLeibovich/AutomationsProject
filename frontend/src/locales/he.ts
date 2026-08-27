@@ -98,7 +98,7 @@ export const he = {
     byErrorSub: 'התפלגות סיבות הכשל',
     failuresUnit: 'כשלים',
     noFailures: 'אין כשלים',
-    noFailuresBody: 'כל הריצות בטווח הזה עברו בהצלחה.',
+    noFailuresBody: 'כל הריצות בטווח הזה עברו בהצלחה',
     pickRange: 'בחרו טווח תאריכים',
     pickRangeBody: 'בחרו תאריך התחלה וסיום ולחצו על החל כדי לראות תוצאות.',
     noRuns: 'אין ריצות בטווח הזה',

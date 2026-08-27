@@ -110,14 +110,15 @@ const CalendarHeader = ({
 
   return (
     <div className="dashboard-date-picker-header">
-      <IconButton
+            <IconButton
         size="small"
-        aria-label="החודש הבא"
+        aria-label="החודש הקודם"
         disabled={disabled}
-        onClick={() => onMonthChange(addMonths(currentMonth, 1), 'left')}
+        onClick={() => onMonthChange(addMonths(currentMonth, -1), 'right')}
       >
-        <ChevronLeftIcon fontSize="small" />
+        <ChevronRightIcon fontSize="small" />
       </IconButton>
+      
       <div className="dashboard-date-picker-heading">
         <button type="button" onClick={(event) => openMenu(event, 'month')}>
           {format(currentMonth, 'LLLL', { locale: hebrewLocale })}
@@ -126,14 +127,16 @@ const CalendarHeader = ({
           {format(currentMonth, 'yyyy', { locale: hebrewLocale })}
         </button>
       </div>
+
       <IconButton
         size="small"
-        aria-label="החודש הקודם"
+        aria-label="החודש הבא"
         disabled={disabled}
-        onClick={() => onMonthChange(addMonths(currentMonth, -1), 'right')}
+        onClick={() => onMonthChange(addMonths(currentMonth, 1), 'left')}
       >
-        <ChevronRightIcon fontSize="small" />
+        <ChevronLeftIcon fontSize="small" />
       </IconButton>
+
       <Popover
         open={Boolean(menu)}
         anchorEl={anchor}
@@ -529,6 +532,7 @@ export const Dashboard = () => {
                 <EmptyState
                   icon={<CheckIcon fontSize="inherit" />}
                   title={he.dashboard.noFailures}
+                  body={he.dashboard.noFailuresBody}
                 />
               )}
             </ChartCard>

@@ -5,14 +5,14 @@ export const useStyles = makeStyles()(() => ({
   root: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 16,
+    gap: 12,
   },
   toolbar: {
     display: 'flex',
     alignItems: 'center',
     gap: 14,
     flexWrap: 'nowrap',
-    height: 84,
+    height: 72,
     boxSizing: 'border-box',
     padding: '13px 18px',
     borderRadius: tokens.radius.card,
