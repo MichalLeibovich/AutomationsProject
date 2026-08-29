@@ -84,6 +84,10 @@ const toDateValue = (value: string): Date | null => (value ? parseISO(value) : n
 
 const toDraftValue = (value: Date | null): string => (value ? format(value, 'yyyy-MM-dd') : '');
 
+/** Years shown per page of the year picker — a paged grid rather than a fixed
+ * static range, so history older than one page back is still reachable. */
+const YEARS_PER_PAGE = 12;
+
 const CalendarHeader = ({
   currentMonth,
   onMonthChange,
@@ -91,15 +95,35 @@ const CalendarHeader = ({
 }: PickersCalendarHeaderProps<Date>) => {
   const [menu, setMenu] = useState<'month' | 'year' | null>(null);
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  // Centred on the visible month's year the first time the year picker opens.
+  const [decadeStart, setDecadeStart] = useState(() => currentMonth.getFullYear() - 6);
+
+  const today = new Date();
+  const isCurrentYear = currentMonth.getFullYear() === today.getFullYear();
+  const isFutureYear = currentMonth.getFullYear() > today.getFullYear();
+
   const months = Array.from({ length: 12 }, (_, month) => ({
     month,
     label: format(setMonth(startOfMonth(currentMonth), month), 'LLLL', { locale: hebrewLocale }),
+    // A custom range can never extend past today, so the picker refuses a
+    // future month instead of letting one through and failing validation later.
+    disabled: isFutureYear || (isCurrentYear && month > today.getMonth()),
   }));
-  const years = Array.from({ length: 15 }, (_, index) => currentMonth.getFullYear() - 7 + index);
+
+  const years = Array.from({ length: YEARS_PER_PAGE }, (_, index) => ({
+    year: decadeStart + index,
+    disabled: decadeStart + index > today.getFullYear(),
+  }));
+
+  const canPageForward = decadeStart + YEARS_PER_PAGE <= today.getFullYear();
+
   const openMenu = (
     event: React.MouseEvent<HTMLButtonElement>,
     nextMenu: 'month' | 'year',
   ) => {
+    if (nextMenu === 'year') {
+      setDecadeStart(currentMonth.getFullYear() - 6);
+    }
     setAnchor(event.currentTarget);
     setMenu(nextMenu);
   };
@@ -110,7 +134,7 @@ const CalendarHeader = ({
 
   return (
     <div className="dashboard-date-picker-header">
-            <IconButton
+      <IconButton
         size="small"
         aria-label="החודש הקודם"
         disabled={disabled}
@@ -118,7 +142,7 @@ const CalendarHeader = ({
       >
         <ChevronRightIcon fontSize="small" />
       </IconButton>
-      
+
       <div className="dashboard-date-picker-heading">
         <button type="button" onClick={(event) => openMenu(event, 'month')}>
           {format(currentMonth, 'LLLL', { locale: hebrewLocale })}
@@ -148,11 +172,13 @@ const CalendarHeader = ({
       >
         {menu === 'month' ? (
           <div className="dashboard-date-picker-month-grid">
-            {months.map(({ month, label }) => (
+            {months.map(({ month, label, disabled: monthDisabled }) => (
               <button
                 key={month}
                 type="button"
+                disabled={monthDisabled}
                 className={month === currentMonth.getMonth() ? 'is-selected' : undefined}
+                data-today={isCurrentYear && month === today.getMonth() ? true : undefined}
                 onClick={() => {
                   onMonthChange(setMonth(startOfMonth(currentMonth), month), 'left');
                   closeMenu();
@@ -163,20 +189,44 @@ const CalendarHeader = ({
             ))}
           </div>
         ) : (
-          <div className="dashboard-date-picker-year-list">
-            {years.map((year) => (
-              <button
-                key={year}
-                type="button"
-                className={year === currentMonth.getFullYear() ? 'is-selected' : undefined}
-                onClick={() => {
-                  onMonthChange(setYear(currentMonth, year), 'left');
-                  closeMenu();
-                }}
+          <div className="dashboard-date-picker-year-panel">
+            <div className="dashboard-date-picker-year-nav">
+              <IconButton
+                size="small"
+                aria-label="עשור קודם"
+                onClick={() => setDecadeStart((value) => value - YEARS_PER_PAGE)}
               >
-                {year}
-              </button>
-            ))}
+                <ChevronRightIcon fontSize="small" />
+              </IconButton>
+              <span className="num">
+                {decadeStart} – {decadeStart + YEARS_PER_PAGE - 1}
+              </span>
+              <IconButton
+                size="small"
+                aria-label="עשור הבא"
+                disabled={!canPageForward}
+                onClick={() => setDecadeStart((value) => value + YEARS_PER_PAGE)}
+              >
+                <ChevronLeftIcon fontSize="small" />
+              </IconButton>
+            </div>
+            <div className="dashboard-date-picker-year-list">
+              {years.map(({ year, disabled: yearDisabled }) => (
+                <button
+                  key={year}
+                  type="button"
+                  disabled={yearDisabled}
+                  className={year === currentMonth.getFullYear() ? 'is-selected' : undefined}
+                  data-today={year === today.getFullYear() ? true : undefined}
+                  onClick={() => {
+                    onMonthChange(setYear(currentMonth, year), 'left');
+                    closeMenu();
+                  }}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </Popover>

@@ -116,35 +116,65 @@ export const useStyles = makeStyles()(() => ({
       boxShadow: tokens.shadow.md,
       backgroundColor: tokens.color.surface,
     },
+
+    // -- month grid -----------------------------------------------------
     '& .dashboard-date-picker-month-grid': {
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
       gap: 4,
     },
+
+    // -- year picker: decade nav + paged grid ----------------------------
+    '& .dashboard-date-picker-year-panel': {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 6,
+    },
+    '& .dashboard-date-picker-year-nav': {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 2px 4px',
+      fontSize: tokens.font.size.sm,
+      fontWeight: tokens.font.weight.semibold,
+      color: tokens.color.ink,
+    },
     '& .dashboard-date-picker-year-list': {
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
       gap: 4,
-      maxHeight: 260,
-      overflowY: 'auto',
     },
+
+    // -- shared cell states: month and year buttons look identical -------
     '& .dashboard-date-picker-month-grid button, & .dashboard-date-picker-year-list button': {
       minHeight: 36,
-      border: 0,
+      border: '1.5px solid transparent',
       borderRadius: tokens.radius.sm,
       background: 'transparent',
       color: tokens.color.ink,
       cursor: 'pointer',
       font: 'inherit',
       fontSize: tokens.font.size.sm,
-      '&:hover': { backgroundColor: tokens.color.runningBg },
+      '&:hover:not(:disabled)': { backgroundColor: tokens.color.runningBg },
+      // Today's cell, when not the selected one: an outline only, so it never
+      // competes visually with the actual selection.
+      '&[data-today]': { borderColor: tokens.color.running },
       '&.is-selected': {
         backgroundColor: tokens.color.running,
         color: tokens.color.surface,
         fontWeight: tokens.font.weight.semibold,
+        borderColor: 'transparent',
+      },
+      // A custom range can never extend into the future, so a future month or
+      // year is inert rather than clickable-then-rejected.
+      '&:disabled': {
+        color: tokens.color.ink25,
+        cursor: 'default',
+        pointerEvents: 'none',
       },
       '&:focus-visible': { outline: `2px solid ${tokens.color.running}` },
     },
+
     '& .MuiDateCalendar-root': {
       width: 320,
       maxHeight: 'none',
