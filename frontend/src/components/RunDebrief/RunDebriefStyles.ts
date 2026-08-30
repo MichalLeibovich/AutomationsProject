@@ -151,7 +151,6 @@ export const useStyles = makeStyles()(() => ({
     alignItems: 'center',
     gap: 10,
     width: '100%',
-    height: '180px',
   },
 
   composer: { display: 'flex', gap: 8 },
@@ -161,7 +160,7 @@ export const useStyles = makeStyles()(() => ({
     '& .MuiOutlinedInput-root': {
       borderRadius: tokens.radius.control,
       background: tokens.color.tintSoft,
-      height: '100px',
+      height: '80px',
       fontSize: tokens.font.size.base,
 
       '& .MuiInputBase-inputMultiline': {
