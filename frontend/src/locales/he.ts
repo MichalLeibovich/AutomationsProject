@@ -56,7 +56,7 @@ export const he = {
     secondary: 'בדיקות משניות',
     filterSecondary: 'סינון בדיקות משניות',
     filterAutomations: 'סינון אוטומציות',
-    notRunThisSession: 'טרם הורצה במפגש הנוכחי',
+    notRunThisSession: 'טרם הורצה',
     sharedAutomation: 'אוטומציה משותפת, לא משויכת לאפליקציה',
     waiting: 'ממתינה',
     waitingForRunner: 'ממתינה לשרת ההרצה',
@@ -109,7 +109,7 @@ export const he = {
     title: 'היסטוריית ריצות',
     count: (shown: number, total: number, scope: string) =>
       `${shown} מתוך ${total} ריצות · ${scope}`,
-    searchPlaceholder: 'חיפוש לפי אפליקציה, בדיקה, מפעיל או שגיאה',
+    searchPlaceholder: 'חיפוש לפי מערכת, בדיקה, משתמש או שגיאה',
     all: 'הכל',
     columns: {
       scope: 'תחום',
@@ -139,7 +139,7 @@ export const he = {
 
   panel: {
     anonymous: 'אנונימי',
-    authorPlaceholder: 'שם (לא חובה)',
+    // authorPlaceholder: 'שם (לא חובה)',
     close: 'סגירת הפאנל',
     dayDetail: 'פירוט יומי',
     daySummary: (total: number, passed: number, failed: number) =>
@@ -153,8 +153,8 @@ export const he = {
     whatWentWrong: 'מה השתבש',
     screenshots: 'צילומי מסך',
     comments: 'הערות',
-    noComments: 'אין עדיין הערות. הוסיפו הערה ראשונה כדי שהמשמרת הבאה תדע במה מדובר.',
-    commentPlaceholder: 'הוסיפו הערה לצוות',
+    noComments: 'אין עדיין הערות. תתכבדו להיות הראשונים לכתוב הערה!',
+    commentPlaceholder: 'הוסיפו הערה לצוות...',
   },
 
   login: {

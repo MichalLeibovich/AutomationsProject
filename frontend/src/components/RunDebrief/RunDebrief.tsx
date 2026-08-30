@@ -96,6 +96,7 @@ export const RunDebrief = ({ run }: { run: TestRun }) => {
   const screenshots = artifacts.filter((artifact) => artifact.kind === 'screenshot');
   const commentList = comments ?? [];
 
+
   return (
     <div className={classes.root}>
       <div className={classes.metaGrid}>
@@ -176,24 +177,28 @@ export const RunDebrief = ({ run }: { run: TestRun }) => {
         )}
 
         <div className={classes.composer}>
-          <TextField
+          {/* <TextField
             className={classes.authorInput}
             size="small"
             value={authorName}
             placeholder={he.panel.authorPlaceholder}
             onChange={(event) => setAuthorName(event.target.value)}
             inputProps={{ maxLength: 120 }}
-          />
+          /> */}
 
           <div className={classes.composerRow}>
             <TextField
               className={classes.composerInput}
               size="small"
+              multiline
               value={draft}
               placeholder={he.panel.commentPlaceholder}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') void submitComment();
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  void submitComment();
+                }
               }}
             />
             <Button

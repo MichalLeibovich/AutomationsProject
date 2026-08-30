@@ -122,6 +122,7 @@ export const useStyles = makeStyles()(() => ({
     marginTop: 2,
     fontSize: tokens.font.size.base,
     overflowWrap: 'anywhere',
+    whiteSpace: 'pre-wrap',
   },
 
   authorInput: {
@@ -131,25 +132,35 @@ export const useStyles = makeStyles()(() => ({
   },
 
   composerRow: {
-
     display: 'flex',
-
+    flexDirection: 'column',
     alignItems: 'center',
-
-    gap: 8,
-
+    gap: 10,
+    width: '100%',
+    height: '180px',
   },
 
   composer: { display: 'flex', gap: 8 },
   composerInput: {
-    flex: 1,
+    width: '95%',
+
     '& .MuiOutlinedInput-root': {
       borderRadius: tokens.radius.control,
       background: tokens.color.tintSoft,
+      height: '100px',
       fontSize: tokens.font.size.base,
-      '& fieldset': { border: 0 },
+
+      '& .MuiInputBase-inputMultiline': {
+        height: '100% !important',
+        boxSizing: 'border-box',
+        textAlign: 'start',
+      },
+
+      '& fieldset': {
+        border: 0,
+      },
+
       '&.Mui-focused': {
-        background: tokens.color.surface,
         boxShadow: `inset 0 0 0 1.5px ${tokens.color.running}`,
       },
     },
