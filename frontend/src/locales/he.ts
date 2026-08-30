@@ -112,7 +112,7 @@ export const he = {
     title: 'היסטוריית ריצות',
     count: (shown: number, total: number, scope: string) =>
       `${shown} מתוך ${total} ריצות · ${scope}`,
-    searchPlaceholder: 'חיפוש לפי אפליקציה, בדיקה, מפעיל או שגיאה',
+    searchPlaceholder: 'חיפוש לפי מערכת, בדיקה, מפעיל או שגיאה',
     all: 'הכל',
     columns: {
       scope: 'תחום',
