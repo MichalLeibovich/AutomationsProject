@@ -150,6 +150,7 @@ export const he = {
     endedAt: 'הסתיימה',
     duration: 'משך',
     runBy: 'הורץ על ידי',
+    runId: 'מזהה ריצה',
     whatWentWrong: 'מה השתבש',
     screenshots: 'צילומי מסך',
     comments: 'הערות',

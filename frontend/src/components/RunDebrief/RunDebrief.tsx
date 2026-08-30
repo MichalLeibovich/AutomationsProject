@@ -1,20 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { Avatar, TextField } from '@mui/material';
+
+import { Avatar, IconButton, TextField, Tooltip } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+
 import WarningIcon from '@mui/icons-material/WarningAmberRounded';
 import ImageIcon from '@mui/icons-material/ImageOutlined';
 import SendIcon from '@mui/icons-material/SendRounded';
+
 import { Button } from '@/components/Button/Button';
 import { IdentityDot } from '@/components/IdentityDot/IdentityDot';
 import { StatusBadge } from '@/components/StatusBadge/StatusBadge';
+
 import { applicationsAtom } from '@/atoms/appAtom';
 import { pushToastAtom } from '@/atoms/toastAtom';
+
 import { runService } from '@/services/runService';
 import { useRunComments } from '@/hooks/useRuns';
 import { he } from '@/locales/he';
 import type { RunArtifact, TestRun } from '@/types/run.types';
 import { formatDuration, formatShortDate, formatTime, initials } from '@/utils/format';
 import { resolveScopeColor } from '@/utils/scope';
+
 import { useStyles } from './RunDebriefStyles';
 
 export const RunDebriefHeader = ({ run }: { run: TestRun }) => {
@@ -27,7 +34,7 @@ export const RunDebriefHeader = ({ run }: { run: TestRun }) => {
       <div className={classes.titleRow}>
         <IdentityDot color={resolveScopeColor(applications, run.applicationId)} />
         <span className={classes.title}>{run.scopeLabel}</span>
-        <StatusBadge status={run.status} />
+        {/* <StatusBadge status={run.status} /> */}
       </div>
       <div className={cx(classes.subtitle, 'num')}>
         {run.testName} · {formatShortDate(run.startedAt)} {he.panel.at}{' '}
@@ -47,6 +54,20 @@ export const RunDebrief = ({ run }: { run: TestRun }) => {
   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
 
   const { data: comments, reload: reloadComments } = useRunComments(run.id);
+
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const isId = (value: string) =>
+    /^[a-z0-9]+-[a-z0-9-]+$/.test(value);
+
+  const handleCopy = async (value: string) => {
+    await navigator.clipboard.writeText(value);
+    setCopiedId(value);
+
+    setTimeout(() => {
+      setCopiedId(null);
+    }, 1500);
+  };
 
   // Presigned URLs are short-lived, so artifacts are fetched when opened.
   useEffect(() => {
@@ -91,6 +112,8 @@ export const RunDebrief = ({ run }: { run: TestRun }) => {
     [he.panel.endedAt, run.endedAt ? formatTime(run.endedAt) : '—'],
     [he.panel.duration, formatDuration(run.durationSeconds)],
     [he.panel.runBy, run.triggeredBy],
+    [he.panel.runId, run.id],
+    [he.timeline.columns.status, run.status]
   ];
 
   const screenshots = artifacts.filter((artifact) => artifact.kind === 'screenshot');
@@ -103,10 +126,39 @@ export const RunDebrief = ({ run }: { run: TestRun }) => {
         {metaFields.map(([label, value]) => (
           <div key={label} className={classes.metaCell}>
             <div className={classes.metaLabel}>{label}</div>
-            <div className={cx(classes.metaValue, 'num')}>{value}</div>
+
+            {['passed', 'failed', 'cancelled'].includes(value) ? (
+              <StatusBadge status={value as 'passed' | 'failed' | 'cancelled'} />
+            ) : isId(value) ? (
+              <div className={classes.idValue}>
+                <div className={cx(classes.metaValue, 'num')}>
+                  {value}
+                </div>
+                <Tooltip
+                  title="Copied!"
+                  placement="top"
+                  open={copiedId === value}
+                >
+                  <IconButton
+                    size="small"
+                    onClick={() => void handleCopy(value)}
+                  >
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+
+
+              </div>
+            ) : (
+              <div className={cx(classes.metaValue, 'num')}>
+                {value}
+              </div>
+            )}
           </div>
         ))}
+
       </div>
+
 
       {run.failure && (
         <section>

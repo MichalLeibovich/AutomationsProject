@@ -38,20 +38,34 @@ export const useStyles = makeStyles()(() => ({
     gap: 1,
     borderRadius: tokens.radius.control,
     overflow: 'hidden',
-    background: tokens.color.line,
+    textAlign: "center",
+    // background: tokens.color.line,
+    // backgroundColor: "red",
   },
   metaCell: {
     background: tokens.color.surface,
     padding: '11px 13px',
+    // backgroundColor: "black"
   },
   metaLabel: {
     fontSize: tokens.font.size.xs,
     fontWeight: 640,
+    marginBottom: 3,
     color: tokens.color.ink40,
   },
   metaValue: {
-    marginTop: 3,
     fontWeight: tokens.font.weight.semibold,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    direction: 'rtl',
+  },
+
+  idValue: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+
   },
 
   sectionTitle: {
