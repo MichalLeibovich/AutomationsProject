@@ -61,7 +61,7 @@ export const RunDebrief = forwardRef<RunDebriefHandle, { run: TestRun }>(({ run 
   const pushToast = useSetAtom(pushToastAtom);
 
   const [draft, setDraft] = useState('');
-  const [authorName, setAuthorName] = useState('');
+  // const [authorName, setAuthorName] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
 
@@ -109,7 +109,7 @@ export const RunDebrief = forwardRef<RunDebriefHandle, { run: TestRun }>(({ run 
 
     setIsPosting(true);
     try {
-      await runService.addComment(run.id, body, authorName.trim() || he.panel.anonymous);
+      await runService.addComment(run.id, body, he.panel.anonymous);
       setDraft('');
       reloadComments();
     } catch {

@@ -122,15 +122,15 @@ would recognise.
 
 ## Configuration
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `AUTOMATION_TARGET_URL` | `https://www.google.com` | the site under test |
-| `AUTOMATION_HEADLESS` | `true` | `false` to watch |
-| `AUTOMATION_TIMEOUT_MS` | `15000` | element wait |
-| `AUTOMATION_NAV_TIMEOUT_MS` | `30000` | page navigation |
-| `AUTOMATION_ARTIFACTS_DIR` | `./artifacts` | screenshots |
+| Variable | Default                    | Purpose |
+|---|----------------------------|---|
+| `AUTOMATION_TARGET_URL` | `https://www.google.com`   | the site under test |
+| `AUTOMATION_HEADLESS` | `true`                     | `false` to watch |
+| `AUTOMATION_TIMEOUT_MS` | `15000`                    | element wait |
+| `AUTOMATION_NAV_TIMEOUT_MS` | `30000`                    | page navigation |
+| `AUTOMATION_ARTIFACTS_DIR` | `./artifacts`              | screenshots |
 | `NOC_API_URL` | `http://localhost:8000/api` | where to report |
-| `NOC_RUN_ID` | unset | set by the runner; enables reporting |
+| `NOC_RUN_ID` | unset                      | set by the runner; enables reporting |
 
 To point every automation at a different site, set `AUTOMATION_TARGET_URL`. The
 page objects take the URL from configuration rather than hardcoding it.

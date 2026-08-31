@@ -25,7 +25,7 @@ export const useStyles = makeStyles()(() => ({
     color: tokens.color.ink40,
   },
   spacer: { flex: 1 },
-  search: { width: 268 },
+  search: { width: 300 },
 
   table: {
     '& .MuiTableCell-root': {

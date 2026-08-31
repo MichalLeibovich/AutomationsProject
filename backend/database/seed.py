@@ -42,7 +42,7 @@ each application's node ids distinct.
 """
 
 MAIN_TEST: tuple[str, str] = (
-    "בדיקת שפיות — טעינת האתר",
+    "בדיקת שפיות - טעינת האתר",
     "tests/test_smoke.py::test_site_is_reachable",
 )
 """The main automation, as ``(display name, node id within the app folder)``."""
