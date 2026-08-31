@@ -38,6 +38,16 @@ AUTOMATIONS_ROOT = Path(__file__).resolve().parent.parent
 POLL_INTERVAL_SECONDS = 2
 """Seconds between polls when the queue is empty."""
 
+TICK_INTERVAL_SECONDS = 60
+"""Seconds between scheduler ticks.
+
+Comfortably below the shortest schedule cadence (two hours), and matched by
+the lookback window `/schedules/tick` itself applies — see
+``services.schedule_service.TICK_LOOKBACK``. Calling it this often is safe:
+every enqueue it triggers is idempotent, so an extra call, or several worker
+replicas each calling it on their own timer, never double-fires anything.
+"""
+
 DEFAULT_TIMEOUT_SECONDS = 600
 """Fallback timeout when a run carries none."""
 
@@ -233,6 +243,23 @@ class Worker:
         except RunnerError:
             return False
 
+    # -- scheduling ----------------------------------------------------------
+    def tick_schedules(self) -> None:
+        """Ask the API to enqueue any scheduled automation that has come due.
+
+        Fails soft: an unreachable API here must not take down the run-draining
+        loop, and the next tick — from this worker or another replica — will
+        simply catch up, since firing is idempotent.
+        """
+        try:
+            response = self._session.post(f"{self.api_url}/schedules/tick", timeout=10)
+            response.raise_for_status()
+            enqueued = response.json().get("enqueued", 0)
+            if enqueued:
+                print(f"[worker] schedule tick enqueued {enqueued} run(s)")
+        except requests.RequestException as error:
+            print(f"[worker] schedule tick failed: {error}")
+
     # -- loops -------------------------------------------------------------
     def run_once(self) -> int:
         """Execute every currently queued run, then return.
@@ -249,12 +276,23 @@ class Worker:
         """Poll for queued runs until interrupted.
 
         An unreachable API is retried rather than fatal: the backend restarting
-        should not require restarting the worker.
+        should not require restarting the worker. A scheduler tick runs on its
+        own timer alongside the queue poll — this is the entire scheduling
+        mechanism; there is no separate cron process.
         """
         print(f"[worker] {self.worker_id} polling {self.api_url}")
 
+        # Ticking immediately on start means a scheduled run overdue from
+        # before the worker came up fires right away rather than waiting a
+        # full interval.
+        last_tick = time.monotonic() - TICK_INTERVAL_SECONDS
+
         while True:
             try:
+                if time.monotonic() - last_tick >= TICK_INTERVAL_SECONDS:
+                    self.tick_schedules()
+                    last_tick = time.monotonic()
+
                 if self.run_once() == 0:
                     time.sleep(POLL_INTERVAL_SECONDS)
             except RunnerError as error:

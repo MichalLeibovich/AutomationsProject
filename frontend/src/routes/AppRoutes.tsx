@@ -3,6 +3,7 @@ import { AppLayout } from '@/App';
 import { Calendar } from '@/pages/Calendar/Calendar';
 import { Dashboard } from '@/pages/Dashboard/Dashboard';
 import { NotFound } from '@/pages/NotFound/NotFound';
+import { ScheduledAutomations } from '@/pages/ScheduledAutomations/ScheduledAutomations';
 import { Tests } from '@/pages/Tests/Tests';
 import { Timeline } from '@/pages/Timeline/Timeline';
 import { paths } from './paths';
@@ -23,6 +24,7 @@ export const AppRoutes = () => (
       <Route path={paths.dashboard} element={<Dashboard />} />
       <Route path={paths.timeline} element={<Timeline />} />
       <Route path={paths.calendar} element={<Calendar />} />
+      <Route path={paths.scheduled} element={<ScheduledAutomations />} />
       <Route path={paths.notFound} element={<NotFound />} />
     </Route>
   </Routes>

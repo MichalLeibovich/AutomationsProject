@@ -14,10 +14,15 @@ from database.models import (
     RunArtifact,
     RunComment,
     RunStep,
+    Schedule,
+    ScheduledOccurrence,
+    ScheduledRunGroup,
+    ScheduleExtraRun,
     TestDefinition,
     TestRun,
 )
 from utils.helpers import iso
+from utils.schedule_time import parse_idempotency_key
 
 
 def serialize_application(application: Application) -> dict[str, Any]:
@@ -77,8 +82,14 @@ def serialize_run(run: TestRun) -> dict[str, Any]:
     Returns:
         A camelCase mapping. ``failure`` is None unless the run failed, in which
         case it carries the feature, error type, reason and stack trace.
-        Timestamps are ISO 8601 strings.
+        Timestamps are ISO 8601 strings. ``scheduledOccurrenceAt`` is set only
+        for a scheduler-originated run, parsed from its idempotency key rather
+        than a stored column — it is the slot the history grouping toggle
+        groups by, which may differ from ``startedAt`` by however long the run
+        sat queued before actually starting.
     """
+    origin = parse_idempotency_key(run.idempotency_key)
+
     return {
         "id": str(run.id),
         "testDefinitionId": str(run.test_definition_id),
@@ -99,6 +110,7 @@ def serialize_run(run: TestRun) -> dict[str, Any]:
         "totalSteps": run.total_steps,
         "failedSteps": run.failed_steps,
         "artifactCount": run.artifact_count,
+        "scheduledOccurrenceAt": iso(origin.occurrence) if origin else None,
         "failure": (
             {
                 "feature": run.failure.feature,
@@ -173,6 +185,89 @@ def serialize_comment(comment: RunComment) -> dict[str, Any]:
         "authorName": comment.author_name,
         "body": comment.body,
         "createdAt": iso(comment.created_at),
+    }
+
+
+def serialize_schedule(schedule: Schedule) -> dict[str, Any]:
+    """Serialise a recurring schedule.
+
+    Args:
+        schedule: The schedule to serialise.
+
+    Returns:
+        A camelCase mapping.
+    """
+    return {
+        "id": str(schedule.id),
+        "applicationId": str(schedule.application_id),
+        "applicationName": schedule.application_name,
+        "everyHours": schedule.every_hours,
+        "anchorMinute": schedule.anchor_minute,
+        "timezone": schedule.timezone,
+        "isActive": schedule.is_active,
+    }
+
+
+def serialize_occurrence(occurrence: ScheduledOccurrence) -> dict[str, Any]:
+    """Serialise one upcoming (or skipped) occurrence.
+
+    Args:
+        occurrence: The occurrence to serialise.
+
+    Returns:
+        A camelCase mapping.
+    """
+    return {
+        "kind": occurrence.kind,
+        "occurrenceAt": iso(occurrence.occurrence),
+        "applicationId": str(occurrence.application_id),
+        "applicationName": occurrence.application_name,
+        "scheduleId": str(occurrence.schedule_id) if occurrence.schedule_id else None,
+        "extraRunId": str(occurrence.extra_run_id) if occurrence.extra_run_id else None,
+        "skipped": occurrence.skipped,
+    }
+
+
+def serialize_extra_run(extra_run: ScheduleExtraRun) -> dict[str, Any]:
+    """Serialise a one-off extra run.
+
+    Args:
+        extra_run: The extra run to serialise.
+
+    Returns:
+        A camelCase mapping.
+    """
+    return {
+        "id": str(extra_run.id),
+        "applicationId": str(extra_run.application_id),
+        "applicationName": extra_run.application_name,
+        "runAt": iso(extra_run.run_at),
+        "createdAt": iso(extra_run.created_at),
+        "firedAt": iso(extra_run.fired_at),
+    }
+
+
+def serialize_run_group(group: ScheduledRunGroup) -> dict[str, Any]:
+    """Serialise one grouped slot of recent scheduled runs.
+
+    Args:
+        group: The group to serialise.
+
+    Returns:
+        A camelCase mapping with an ``entries`` array, one per application
+        that ran in this slot.
+    """
+    return {
+        "occurrenceAt": iso(group.occurrence),
+        "entries": [
+            {
+                "applicationId": str(entry.application_id),
+                "applicationName": entry.application_name,
+                "runId": str(entry.run_id),
+                "status": entry.status,
+            }
+            for entry in group.entries
+        ],
     }
 
 

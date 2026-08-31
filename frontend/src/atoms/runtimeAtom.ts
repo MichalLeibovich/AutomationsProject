@@ -17,6 +17,17 @@ export interface TestRuntimeState {
 
 export const runtimeByDefinitionAtom = atom<Record<string, TestRuntimeState>>({});
 
+/**
+ * Live status by run id, independent of `runtimeByDefinitionAtom`.
+ *
+ * The per-definition map only ever tracks one (the latest) run per
+ * automation, which is right for the Tests grid but wrong for a list of
+ * distinct historical runs — such as the scheduled-automations page's recent
+ * occurrences — where several runs for the same definition can be on screen
+ * at once and each needs its own live status.
+ */
+export const runtimeByRunIdAtom = atom<Record<string, RunStatus>>({});
+
 export const hasActiveRunsAtom = atom((get) =>
   Object.values(get(runtimeByDefinitionAtom)).some(
     (state) => state.status === 'running' || state.status === 'queued',
@@ -78,6 +89,10 @@ export const applyLiveUpdateAtom = atom(
         durationSeconds: payload.durationSeconds ?? null,
         failureReason: payload.failureReason ?? null,
       },
+    });
+    set(runtimeByRunIdAtom, {
+      ...get(runtimeByRunIdAtom),
+      [payload.runId]: payload.status,
     });
   },
 );

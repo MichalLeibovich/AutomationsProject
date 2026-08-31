@@ -109,6 +109,22 @@ This is how a runner resolves the automation it just executed back to a catalog
 row without needing to know any database identifier.
 """
 
+SELECT_MAIN_DEFINITION_FOR_APPLICATION = (
+    DEFINITION_PROJECTION
+    + """
+    WHERE d.is_active
+      AND d.kind = 'main'
+      AND d.scope = 'application'
+      AND d.application_id = %(application_id)s
+"""
+)
+"""Load the current active main test of one application, by id.
+
+Used by the scheduler at tick time, so a schedule always fires whatever
+automation is *currently* the application's main test, surviving that test
+being renamed (which archives the old definition and creates a new one).
+"""
+
 SELECT_MAIN_DEFINITIONS_FOR_BULK = (
     DEFINITION_PROJECTION
     + """
@@ -165,7 +181,8 @@ RUN_PROJECTION = """
            r.queued_at, r.started_at, r.ended_at, r.duration_seconds,
            r.triggered_by, r.trigger_source, r.worker_id, r.attempt,
            r.total_steps, r.failed_steps, r.artifact_count,
-           r.failure_feature, r.failure_error_type, r.failure_reason, r.stack_trace
+           r.failure_feature, r.failure_error_type, r.failure_reason, r.stack_trace,
+           r.idempotency_key
     FROM noc.test_runs r
 """
 """Shared column list for every run query, so the projection cannot drift."""
@@ -175,6 +192,8 @@ RUN_FILTER = """
            (%(scope)s::text = 'general' AND r.scope = 'general') OR
            (%(scope)s::text <> 'general' AND r.scope_label = %(scope)s::text))
       AND (%(status)s::text IS NULL OR r.status = %(status)s::noc.run_status)
+      AND (%(trigger_source)s::text IS NULL OR
+           r.trigger_source = %(trigger_source)s::noc.trigger_source)
       AND (%(search)s::text IS NULL OR
            r.search_text LIKE '%%' || lower(%(search)s::text) || '%%')
       AND (%(date_from)s::timestamptz IS NULL OR r.started_at >= %(date_from)s::timestamptz)
@@ -205,7 +224,8 @@ SELECT_ACTIVE_RUNS = """
     SELECT * FROM (
       SELECT DISTINCT ON (r.test_definition_id)
              r.id, r.test_definition_id, r.status, r.started_at, r.ended_at,
-             r.duration_seconds, r.failure_reason
+             r.duration_seconds, r.failure_reason, r.trigger_source, r.scope_label,
+             r.test_name
       FROM noc.test_runs r
       WHERE r.status IN ('queued', 'running')
          OR r.ended_at > now() - %(settle_window)s::interval
@@ -286,23 +306,45 @@ INSERT_RUN = """
               scope, scope_label, status, queued_at, started_at, ended_at,
               duration_seconds, triggered_by, trigger_source, worker_id, attempt,
               total_steps, failed_steps, artifact_count,
-              failure_feature, failure_error_type, failure_reason, stack_trace
+              failure_feature, failure_error_type, failure_reason, stack_trace,
+              idempotency_key
 """
 """Insert a queued run with its scope label frozen at insert time."""
 
 MARK_RUN_RUNNING = """
-    UPDATE noc.test_runs
-       SET status = 'running', worker_id = %(worker_id)s, started_at = now()
-     WHERE id = %(run_id)s AND status = 'queued'
-    RETURNING id, test_definition_id, test_name, runner_target, application_id,
-              scope, scope_label, status, queued_at, started_at, ended_at,
-              duration_seconds, triggered_by, trigger_source, worker_id, attempt,
-              total_steps, failed_steps, artifact_count,
-              failure_feature, failure_error_type, failure_reason, stack_trace
+    WITH claimed AS (
+        UPDATE noc.test_runs
+           SET status = 'running', worker_id = %(worker_id)s, started_at = now()
+         WHERE id = %(run_id)s AND status = 'queued'
+        RETURNING id, test_definition_id, test_name, runner_target, application_id,
+                  scope, scope_label, status, queued_at, started_at, ended_at,
+                  duration_seconds, triggered_by, trigger_source, worker_id, attempt,
+                  total_steps, failed_steps, artifact_count,
+                  failure_feature, failure_error_type, failure_reason, stack_trace,
+                  idempotency_key
+    ), synced AS (
+        UPDATE noc.run_idempotency
+           SET run_started_at = claimed.started_at
+          FROM claimed
+         WHERE run_idempotency.run_id = claimed.id
+        RETURNING 1
+    )
+    SELECT claimed.* FROM claimed LEFT JOIN synced ON true
 """
 """Transition a queued run to running.
 
 The status guard makes the claim atomic, so two workers cannot both win.
+
+Also re-points the run's idempotency claim at the new ``started_at``: that
+value moves forward here (to when execution actually began, not when the run
+was queued), and ``run_idempotency.run_started_at`` must track it exactly,
+since ``SELECT_RUN_BY_IDEMPOTENCY_KEY`` joins on both ``run_id`` and
+``run_started_at`` together. Left unsynced, that join silently stops
+matching the instant a run is claimed — the scheduler then sees the
+occurrence as never having fired and enqueues a fresh duplicate on every
+subsequent tick for as long as it stays within the lookback window. The
+``LEFT JOIN ... ON true`` only exists to force the ``synced`` CTE to execute:
+an unreferenced data-modifying CTE is not guaranteed to run in Postgres.
 """
 
 COMPLETE_RUN = """
@@ -318,7 +360,8 @@ COMPLETE_RUN = """
               scope, scope_label, status, queued_at, started_at, ended_at,
               duration_seconds, triggered_by, trigger_source, worker_id, attempt,
               total_steps, failed_steps, artifact_count,
-              failure_feature, failure_error_type, failure_reason, stack_trace
+              failure_feature, failure_error_type, failure_reason, stack_trace,
+              idempotency_key
 """
 """Transition an in-flight run to a terminal status with failure detail."""
 
@@ -330,7 +373,8 @@ CANCEL_RUN = """
               scope, scope_label, status, queued_at, started_at, ended_at,
               duration_seconds, triggered_by, trigger_source, worker_id, attempt,
               total_steps, failed_steps, artifact_count,
-              failure_feature, failure_error_type, failure_reason, stack_trace
+              failure_feature, failure_error_type, failure_reason, stack_trace,
+              idempotency_key
 """
 """Cancel an in-flight run.
 
@@ -504,6 +548,108 @@ The database function chooses between a concurrent and a blocking refresh, since
 the preconditions can only be checked reliably in the same transaction as the
 refresh itself.
 """
+
+
+# ===========================================================================
+# Schedules
+# ===========================================================================
+SCHEDULE_PROJECTION = """
+    SELECT s.id, s.application_id, s.every_hours, s.anchor_minute, s.timezone,
+           s.is_active, a.name AS application_name
+    FROM noc.schedules s
+    JOIN noc.applications a ON a.id = s.application_id
+"""
+"""Shared column list for schedule queries."""
+
+SELECT_ACTIVE_SCHEDULES = SCHEDULE_PROJECTION + " WHERE s.is_active ORDER BY a.display_order, a.name"
+"""List every active recurring schedule, application name joined for display."""
+
+SELECT_SCHEDULE_BY_ID = SCHEDULE_PROJECTION + " WHERE s.id = %(schedule_id)s"
+"""Load one schedule by primary key."""
+
+SELECT_SKIPS_IN_RANGE = """
+    SELECT id, schedule_id, occurrence, created_at, restored_at
+    FROM noc.schedule_skips
+    WHERE schedule_id = ANY(%(schedule_ids)s::uuid[])
+      AND occurrence >= %(start)s AND occurrence < %(end)s
+"""
+"""List every skip — active or already restored — touching a set of
+schedules within a range, so the caller can distinguish a cancelled
+occurrence from a restored one rather than just seeing it vanish."""
+
+UPSERT_SCHEDULE_SKIP = """
+    INSERT INTO noc.schedule_skips (schedule_id, occurrence)
+    VALUES (%(schedule_id)s, %(occurrence)s)
+    ON CONFLICT (schedule_id, occurrence) DO UPDATE SET restored_at = NULL
+    RETURNING id, schedule_id, occurrence, created_at, restored_at
+"""
+"""Cancel one occurrence. Re-skipping an already-restored occurrence clears
+the restoration, so it goes back to cancelled rather than erroring."""
+
+RESTORE_SCHEDULE_SKIP = """
+    UPDATE noc.schedule_skips
+       SET restored_at = now()
+     WHERE schedule_id = %(schedule_id)s
+       AND occurrence  = %(occurrence)s
+       AND restored_at IS NULL
+    RETURNING id, schedule_id, occurrence, created_at, restored_at
+"""
+"""Undo a skip. Returns nothing if the occurrence was never skipped, or was
+already restored."""
+
+SELECT_EXTRA_RUNS_IN_RANGE = """
+    SELECT er.id, er.application_id, er.run_at, er.created_at, er.fired_at,
+           a.name AS application_name
+    FROM noc.schedule_extra_runs er
+    JOIN noc.applications a ON a.id = er.application_id
+    WHERE er.run_at >= %(start)s AND er.run_at < %(end)s
+    ORDER BY er.run_at
+"""
+"""List one-off extra runs due within a range, fired or not."""
+
+SELECT_DUE_EXTRA_RUNS = """
+    SELECT id, application_id, run_at, created_at, fired_at
+    FROM noc.schedule_extra_runs
+    WHERE fired_at IS NULL AND run_at <= %(now)s
+    ORDER BY run_at
+"""
+"""List unfired extra runs whose time has arrived — what a tick enqueues."""
+
+INSERT_EXTRA_RUN = """
+    INSERT INTO noc.schedule_extra_runs (application_id, run_at)
+    VALUES (%(application_id)s, %(run_at)s)
+    RETURNING id, application_id, run_at, created_at, fired_at
+"""
+"""Create a one-off scheduled run. Does not touch the application's
+recurring schedule."""
+
+MARK_EXTRA_RUN_FIRED = """
+    UPDATE noc.schedule_extra_runs SET fired_at = now()
+     WHERE id = %(extra_run_id)s AND fired_at IS NULL
+    RETURNING id, application_id, run_at, created_at, fired_at
+"""
+"""Mark an extra run enqueued. Guarded by `fired_at IS NULL` so a tick that
+races another cannot mark — or re-enqueue — the same one twice; the actual
+double-fire protection is still the idempotency key, this just keeps the
+extra-runs table's own bookkeeping honest."""
+
+DELETE_PENDING_EXTRA_RUN = """
+    DELETE FROM noc.schedule_extra_runs WHERE id = %(extra_run_id)s AND fired_at IS NULL
+"""
+"""Remove a one-off run before it fires. A fired run cannot be deleted —
+it already happened."""
+
+SELECT_RECENT_SCHEDULED_RUNS = (
+    RUN_PROJECTION
+    + """
+    WHERE r.trigger_source = 'schedule'
+    ORDER BY r.started_at DESC
+    LIMIT %(limit)s
+"""
+)
+"""List the most recent scheduler-originated runs — both recurring
+occurrences and one-off extras, distinguished by the `schedule:` / `extra:`
+prefix on `idempotency_key` rather than by a separate column."""
 
 
 # ===========================================================================

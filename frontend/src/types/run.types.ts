@@ -71,6 +71,15 @@ export interface TestRun {
   totalSteps: number;
   failedSteps: number;
   artifactCount: number;
+  /**
+   * The scheduled occurrence this run belongs to, when it was
+   * scheduler-originated (`triggerSource === 'schedule'`). Parsed
+   * server-side from the run's idempotency key rather than a stored column —
+   * it is the slot the history grouping toggle groups by, which may differ
+   * from `startedAt` by however long the run sat queued. Null for any other
+   * trigger source.
+   */
+  scheduledOccurrenceAt: string | null;
   /** Null unless the run failed. */
   failure: RunFailure | null;
 }
@@ -109,6 +118,13 @@ export interface LiveRunUpdate {
   elapsedSeconds: number;
   durationSeconds: number | null;
   failureReason: string | null;
+  /** How the run was triggered — what a failure-notification listener
+   * filters on to alert only for unattended, scheduler-originated runs. */
+  triggerSource: TriggerSource;
+  /** Application name (or the general label), for a notification's text. */
+  scopeLabel: string;
+  /** Automation name, for a notification's text. */
+  testName: string;
 }
 
 /** A free-text operator note attached to a run. */

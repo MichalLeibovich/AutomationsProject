@@ -1,4 +1,4 @@
-import type { RunStatus, TestRun } from './run.types';
+import type { RunStatus, TestRun, TriggerSource } from './run.types';
 
 export interface Paginated<T> {
   items: T[];
@@ -14,6 +14,7 @@ export type StatusFilter = RunStatus | 'all';
 export interface RunListParams {
   scope?: string | null;
   status?: StatusFilter;
+  triggerSource?: TriggerSource;
   search?: string;
   from?: string;
   to?: string;

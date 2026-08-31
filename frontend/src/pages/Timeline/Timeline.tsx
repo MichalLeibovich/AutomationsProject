@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import {
+  Checkbox,
   Table,
   TableBody,
   TableCell,
@@ -47,6 +48,7 @@ export const Timeline = () => {
   const [status, setStatus] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(TIMELINE_PAGE_SIZE);
+  const [groupScheduled, setGroupScheduled] = useState(false);
 
   // Debounced so typing does not fire a request per keystroke.
   const debouncedSearch = useDebounce(search, SEARCH_DEBOUNCE_MS);
@@ -54,6 +56,7 @@ export const Timeline = () => {
   const { data, isLoading, error } = useRunList({
     scope,
     status,
+    triggerSource: groupScheduled ? 'schedule' : undefined,
     search: debouncedSearch,
     sort: sort.field,
     direction: sort.direction,
@@ -85,18 +88,45 @@ export const Timeline = () => {
   };
 
   const grouped = useMemo(() => {
-    if (sort.field !== 'started_at') {
-      return rows.map((run) => ({ run, dayHeader: null as string | null }));
+    if (groupScheduled) {
+      // Every row is already schedule-triggered (filtered server-side), so
+      // this buckets purely by occurrence slot rather than relying on same-day
+      // adjacency — correct regardless of which column the list is sorted by.
+      const order: string[] = [];
+      const buckets = new Map<string, typeof rows>();
+
+      rows.forEach((run) => {
+        const key = run.scheduledOccurrenceAt ?? run.id;
+        if (!buckets.has(key)) {
+          buckets.set(key, []);
+          order.push(key);
+        }
+        buckets.get(key)!.push(run);
+      });
+
+      return order.flatMap((key) =>
+        buckets.get(key)!.map((run, index) => ({
+          run,
+          dayHeader: null as string | null,
+          slotHeader: index === 0 ? formatTime(key) : null,
+        })),
+      );
     }
 
-    let previous: string | null = null;
+    if (sort.field !== 'started_at') {
+      return rows.map((run) => ({ run, dayHeader: null as string | null, slotHeader: null as string | null }));
+    }
+
+    let previousDay: string | null = null;
+
     return rows.map((run) => {
-      const key = dayKey(run.startedAt);
-      const dayHeader = key !== previous ? formatLongDate(run.startedAt) : null;
-      previous = key;
-      return { run, dayHeader };
+      const dayKeyValue = dayKey(run.startedAt);
+      const dayHeader = dayKeyValue !== previousDay ? formatLongDate(run.startedAt) : null;
+      previousDay = dayKeyValue;
+
+      return { run, dayHeader, slotHeader: null as string | null };
     });
-  }, [rows, sort.field]);
+  }, [rows, sort.field, groupScheduled]);
 
   const sortableHeader = (field: RunSortField, label: string) => (
     <TableCell>
@@ -140,16 +170,25 @@ export const Timeline = () => {
                 {sortableHeader('started_at', he.timeline.columns.startedAt)}
                 {sortableHeader('duration_seconds', he.timeline.columns.duration)}
                 <TableCell>{he.timeline.columns.runBy}</TableCell>
+                <TableCell>{he.timeline.columns.trigger}</TableCell>
                 {sortableHeader('status', he.timeline.columns.status)}
                 <TableCell />
               </TableRow>
             </TableHead>
 
             <TableBody>
-              {grouped.map(({ run, dayHeader }) => [
+              {grouped.map(({ run, dayHeader, slotHeader }) => [
                 dayHeader ? (
                   <TableRow key={`${run.id}-day`} className={classes.dayRow}>
-                    <TableCell colSpan={7}>{dayHeader}</TableCell>
+                    <TableCell colSpan={8}>{dayHeader}</TableCell>
+                  </TableRow>
+                ) : null,
+
+                slotHeader ? (
+                  <TableRow key={`${run.id}-slot`} className={classes.dayRow}>
+                    <TableCell colSpan={8} className="num">
+                      {slotHeader}
+                    </TableCell>
                   </TableRow>
                 ) : null,
 
@@ -163,7 +202,14 @@ export const Timeline = () => {
                   <TableCell className={classes.muted}>{run.testName}</TableCell>
                   <TableCell className="num">{formatTime(run.startedAt)}</TableCell>
                   <TableCell className="num">{formatDuration(run.durationSeconds)}</TableCell>
-                  <TableCell className={classes.muted}>{run.triggeredBy}</TableCell>
+                  <TableCell className={classes.muted}>
+                    {run.triggerSource === 'schedule' ? '—' : run.triggeredBy}
+                  </TableCell>
+                  <TableCell className={classes.muted}>
+                    {run.triggerSource === 'schedule'
+                      ? he.timeline.triggerAutomatic
+                      : he.timeline.triggerManual}
+                  </TableCell>
                   <TableCell>
                     <StatusBadge status={run.status} />
                   </TableCell>
@@ -220,6 +266,16 @@ export const Timeline = () => {
             testId="timeline-search"
           />
         </div>
+
+        <label className={classes.groupToggle}>
+          <Checkbox defaultChecked
+            className={classes.groupToggleCheckbox}
+            checked={groupScheduled}
+            onChange={(event) => setGroupScheduled(event.target.checked)}
+            data-testid="group-scheduled-toggle"
+          />
+          {he.timeline.groupScheduled}
+        </label>
 
         <SegmentedControl<StatusFilter>
           small

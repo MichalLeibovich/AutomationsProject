@@ -41,6 +41,19 @@ The fourth element is the folder the automations live in, which is what makes
 each application's node ids distinct.
 """
 
+SCHEDULES: list[tuple[str, int]] = [
+    ("magen-elyon", 2),
+    ("harmony", 2),
+    ("gaussian", 4),
+    ("butterfly-effect", 4),
+]
+"""Recurring schedules as ``(application slug, every_hours)``.
+
+Magen Elyon and Harmony run their main test every two hours; Gaussian and
+Butterfly Effect every four, both anchored to local midnight in
+Asia/Jerusalem (the schedule's default timezone and anchor minute).
+"""
+
 MAIN_TEST: tuple[str, str] = (
     "בדיקת שפיות - טעינת האתר",
     "tests/test_smoke.py::test_site_is_reachable",
@@ -303,6 +316,44 @@ def seed_automations(cursor: Any, applications: list[dict[str, Any]]) -> int:
     return len(catalog)
 
 
+def seed_schedules(cursor: Any, applications: list[dict[str, Any]]) -> int:
+    """Register the recurring schedule of every application that has one.
+
+    Upserts on ``application_id`` (the table's unique key), so re-seeding
+    never accumulates duplicate schedules.
+
+    Args:
+        cursor: Cursor inside an open transaction.
+        applications: Applications returned by :func:`seed_applications`,
+            used to resolve each slug to an id.
+
+    Returns:
+        The number of schedules registered.
+    """
+    by_slug = {application["slug"]: application["id"] for application in applications}
+    registered = 0
+
+    for slug, every_hours in SCHEDULES:
+        application_id = by_slug.get(slug)
+        if application_id is None:
+            logger.warning("schedule references unknown application", extra={"slug": slug})
+            continue
+
+        cursor.execute(
+            """
+            INSERT INTO noc.schedules (application_id, every_hours)
+            VALUES (%s, %s)
+            ON CONFLICT (application_id) DO UPDATE
+              SET every_hours = EXCLUDED.every_hours, is_active = true
+            """,
+            (application_id, every_hours),
+        )
+        registered += 1
+
+    logger.info("schedules seeded", extra={"count": registered})
+    return registered
+
+
 def ensure_partitions(cursor: Any, days: int) -> None:
     """Create every run partition the generated range will need.
 
@@ -435,6 +486,7 @@ def main() -> None:
     with transaction() as cursor:
         applications = seed_applications(cursor)
         automations = seed_automations(cursor, applications)
+        schedules = seed_schedules(cursor, applications)
         history = seed_demo_history(cursor, args.demo_history) if args.demo_history else 0
 
     if history:
@@ -443,7 +495,7 @@ def main() -> None:
 
     print(
         f"Seed complete: {len(applications)} applications, "
-        f"{automations} automations, {history} demo runs"
+        f"{automations} automations, {schedules} schedules, {history} demo runs"
     )
 
 

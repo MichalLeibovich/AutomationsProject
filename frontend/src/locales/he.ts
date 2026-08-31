@@ -1,3 +1,18 @@
+/** Feminine cardinal numbers, as "שעות" takes — 1 and 2 are irregular and
+ * handled separately in {@link he.schedule.everyHours}. */
+const HOUR_WORDS: Record<number, string> = {
+  3: 'שלוש',
+  4: 'ארבע',
+  5: 'חמש',
+  6: 'שש',
+  7: 'שבע',
+  8: 'שמונה',
+  9: 'תשע',
+  10: 'עשר',
+  11: 'אחת עשרה',
+  12: 'שתים עשרה',
+};
+
 /**
  * All user-facing copy. Centralised so the Hebrew strings are not scattered
  * across components — the prerequisite for adding a second locale later.
@@ -9,10 +24,11 @@ export const he = {
   },
  
   nav: {
-    tests: 'בדיקות',
+    tests: 'אוטומציות',
     dashboard: 'לוח בקרה',
     timeline: 'היסטוריה',
     calendar: 'יומן',
+    scheduled: 'אוטומציות מתוזמנות',
     signOut: 'התנתקות',
   },
  
@@ -120,6 +136,7 @@ export const he = {
       startedAt: 'התחילה',
       duration: 'משך',
       runBy: 'הורץ על ידי',
+      trigger: 'סוג הרצה',
       status: 'סטטוס',
     },
     remaining: (count: number) => `(נותרו ${count})`,
@@ -129,6 +146,9 @@ export const he = {
     emptyFilter: 'שנו את סינון הסטטוס או בטלו את בחירת האפליקציה.',
     exportStarted: 'הייצוא החל. הקובץ יורד בסיום העיבוד.',
     exportReady: 'הייצוא מוכן להורדה.',
+    triggerManual: 'ידני',
+    triggerAutomatic: 'אוטומטי',
+    groupScheduled: 'סנן וקבץ אוטומציות מתוזמנות',
   },
  
   calendar: {
@@ -140,6 +160,51 @@ export const he = {
     weekdays: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'],
   },
  
+  schedule: {
+    upcomingTitle: 'אוטומציות הבאות שעתידות לרוץ',
+    recentTitle: 'אוטומציות מתוזמנות אחרונות שרצו',
+    next24hTitle: 'תזמון 24 השעות הקרובות',
+    noUpcoming: 'אין אוטומציות מתוזמנות בטווח הקרוב',
+    noRecent: 'עדיין לא רצה אף אוטומציה מתוזמנת',
+    skipped: 'בוטל',
+    restore: 'שחזור',
+    addRun: 'הוספת ריצה מתוזמנת',
+    addRunTitle: 'הוספת ריצה מתוזמנת',
+    addRunApplication: 'מערכת',
+    addRunDate: 'תאריך',
+    addRunTimeOfDay: 'שעה',
+    addRunPastError: 'לא ניתן לתזמן ריצה בעבר',
+    addRunSubmit: 'תזמון',
+    addRunSuccess: 'הריצה תוזמנה',
+    deleteSelected: 'מחיקת ריצות נבחרות',
+    deleteConfirmTitle: 'ביטול ריצות מתוזמנות',
+    deleteConfirmBody: (system: string, times: string) =>
+      `למחוק את הריצות המתוזמנות של ${system} בשעות ${times}?`,
+    deleteSuccess: 'הריצות בוטלו',
+    restoreSuccess: 'הריצה שוחזרה',
+    everyHours: (hours: number): string => {
+      if (hours === 1) return 'כל שעה';
+      if (hours === 2) return 'כל שעתיים';
+      const word = HOUR_WORDS[hours];
+      return word ? `כל ${word} שעות` : `כל ${hours} שעות`;
+    },
+    edit: 'עריכה',
+    doneEditing: 'סיום עריכה',
+    clearSelection: 'ניקוי בחירה',
+    frequencyTitle: 'תדירות הרצת האוטומציות',
+    frequencyTestName: 'בדיקת שפיות - טעינת האתר',
+    noFrequency: 'לא הוגדרו אוטומציות מתוזמנות פעילות',
+  },
+
+  notifications: {
+    permissionButtonLabel: 'התראות דפדפן',
+    permissionDefault: 'לחצו כדי לאפשר התראות שולחן עבודה על כשל באוטומציה מתוזמנת',
+    permissionGranted: 'התראות שולחן עבודה פעילות',
+    permissionDenied: 'התראות דפדפן חסומות. ניתן לשנות זאת בהגדרות הדפדפן',
+    failureTitle: (system: string) => `כשל באוטומציה מתוזמנת — ${system}`,
+    failureBody: (test: string) => test,
+  },
+
   panel: {
     anonymous: 'אנונימי',
     authorPlaceholder: 'שם (לא חובה)',

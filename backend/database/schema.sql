@@ -367,6 +367,79 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- Schedules — recurring automation firing rules
+--
+-- Occurrences are never stored: they are computed on demand from
+-- (every_hours, anchor_minute, timezone) by the application layer
+-- (utils/schedule_time.py), so this table only ever holds one row per
+-- application per cadence, however far into the future "upcoming" looks.
+--
+-- Bound to application_id rather than a frozen test_definition_id, so a
+-- schedule keeps firing the application's *current* main test even if that
+-- test is later renamed (which archives the old definition row and creates a
+-- new one) — the same resolution bulk-run already does.
+-- ---------------------------------------------------------------------------
+-- One schedule per application today — the interface offers no way to
+-- attach a second cadence to the same application, so the unique constraint
+-- keeps re-seeding idempotent (upsert on application_id) rather than
+-- accumulating duplicate rows.
+CREATE TABLE IF NOT EXISTS noc.schedules (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  application_id uuid NOT NULL UNIQUE REFERENCES noc.applications (id) ON DELETE CASCADE,
+  every_hours    smallint NOT NULL,
+  anchor_minute  smallint NOT NULL DEFAULT 0,
+  timezone       text NOT NULL DEFAULT 'Asia/Jerusalem',
+  is_active      boolean NOT NULL DEFAULT true,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT schedules_every_hours_positive CHECK (every_hours > 0 AND every_hours <= 24),
+  CONSTRAINT schedules_every_hours_divides_day CHECK (24 % every_hours = 0),
+  CONSTRAINT schedules_anchor_minute_range CHECK (anchor_minute BETWEEN 0 AND 59)
+);
+
+-- ---------------------------------------------------------------------------
+-- Schedule skips — one cancelled recurring occurrence
+--
+-- Deleting "the 02:00 run" cannot delete a row that does not exist yet, since
+-- occurrences are computed rather than stored. A skip is what makes an
+-- occurrence not fire. `restored_at` is how undo works: the row is kept and
+-- greyed out rather than removed, so a deliberate gap is visibly a deliberate
+-- gap rather than looking like a bug.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS noc.schedule_skips (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  schedule_id uuid NOT NULL REFERENCES noc.schedules (id) ON DELETE CASCADE,
+  occurrence  timestamptz NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  restored_at timestamptz,
+
+  UNIQUE (schedule_id, occurrence)
+);
+
+CREATE INDEX IF NOT EXISTS schedule_skips_active_idx
+  ON noc.schedule_skips (schedule_id, occurrence) WHERE restored_at IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Schedule extra runs — one-off scheduled runs outside any recurring rule
+--
+-- What the "+" control creates: a single run for one application at a chosen
+-- time, entirely independent of that application's recurring schedule (which
+-- is left untouched). `fired_at` is set once the tick has enqueued it, which
+-- is also what stops it from being deleted after the fact — a run that
+-- already happened cannot be un-scheduled.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS noc.schedule_extra_runs (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  application_id uuid NOT NULL REFERENCES noc.applications (id) ON DELETE CASCADE,
+  run_at         timestamptz NOT NULL,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  fired_at       timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS schedule_extra_runs_pending_idx
+  ON noc.schedule_extra_runs (run_at) WHERE fired_at IS NULL;
+
+-- ---------------------------------------------------------------------------
 -- Daily rollup
 --
 -- `application_key` is materialised as a column so the unique index can be

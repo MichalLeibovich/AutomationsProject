@@ -58,6 +58,26 @@ class TestDefinitionRepository(BaseRepository):
         )
         return self.map_one(row, TestDefinition.from_row)
 
+    def find_main_for_application(self, application_id: UUID) -> TestDefinition | None:
+        """Load the current active main test of one application.
+
+        Used by the scheduler at tick time so a schedule always fires
+        whatever automation is *currently* the application's main test —
+        surviving that test being renamed, which archives the old definition
+        row and creates a new one.
+
+        Args:
+            application_id: The owning application.
+
+        Returns:
+            The main definition, or None if the application has none active.
+        """
+        row = self.fetch_one(
+            queries.SELECT_MAIN_DEFINITION_FOR_APPLICATION,
+            {"application_id": str(application_id)},
+        )
+        return self.map_one(row, TestDefinition.from_row)
+
     def list_main_for_bulk(self, scope: str | None) -> list[TestDefinition]:
         """List the main test of every active application in scope.
 

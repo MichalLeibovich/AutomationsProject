@@ -75,6 +75,7 @@ class AnalyticsService(BaseRepository):
         params = {
             "scope": scope,
             "status": None,
+            "trigger_source": None,
             "search": None,
             "date_from": start,
             "date_to": end,

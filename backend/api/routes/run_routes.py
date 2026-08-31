@@ -72,7 +72,8 @@ def list_runs() -> Response:
     """Return a page of runs.
 
     Query parameters:
-        scope, status, search, from, to, sort, direction, limit, offset.
+        scope, status, triggerSource, search, from, to, sort, direction, limit,
+        offset.
 
     Returns:
         HTTP 200 with ``items``, ``total``, ``limit`` and ``offset``.

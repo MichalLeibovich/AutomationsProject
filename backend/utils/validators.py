@@ -281,6 +281,9 @@ def validate_run_list_query(args: Mapping[str, Any]) -> dict[str, Any]:
         "status": optional_choice(
             args.get("status"), "status", (*ALL_STATUSES, "all"), default="all"
         ),
+        "trigger_source": optional_choice(
+            args.get("triggerSource"), "triggerSource", ALL_TRIGGER_SOURCES
+        ),
         "search": optional_string(args.get("search"), "search", max_length=200),
         "date_from": parse_datetime(args.get("from"), "from"),
         "date_to": parse_datetime(args.get("to"), "to"),
@@ -536,6 +539,93 @@ def validate_calendar_query(args: Mapping[str, Any]) -> dict[str, int]:
     return {
         "year": parse_int(args.get("year"), "year", default=0, minimum=2000, maximum=2100),
         "month": parse_int(args.get("month"), "month", default=0, minimum=1, maximum=12),
+    }
+
+
+def require_datetime(value: Any, field: str) -> datetime:
+    """Validate a mandatory ISO 8601 timestamp.
+
+    Args:
+        value: Candidate value.
+        field: Field name used in the error details.
+
+    Returns:
+        The parsed datetime, timezone-aware — a naive value is read as UTC.
+
+    Raises:
+        ValidationError: If missing or not valid ISO 8601.
+    """
+    if value is None or value == "":
+        _fail(field, "נדרש תאריך בפורמט ISO 8601")
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        _fail(field, "נדרש תאריך בפורמט ISO 8601")
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def validate_upcoming_query(args: Mapping[str, Any]) -> dict[str, int]:
+    """Validate the query string for the upcoming-occurrences list.
+
+    Args:
+        args: Query parameters with an optional ``hours``.
+
+    Returns:
+        Keyword arguments for the schedule service.
+
+    Raises:
+        ValidationError: If ``hours`` is out of range.
+    """
+    return {
+        "hours": parse_int(args.get("hours"), "hours", default=24, minimum=1, maximum=24 * 14)
+    }
+
+
+def validate_recent_query(args: Mapping[str, Any]) -> dict[str, int]:
+    """Validate the query string for the recent-scheduled-runs list.
+
+    Args:
+        args: Query parameters with an optional ``limit``.
+
+    Returns:
+        Keyword arguments for the schedule service.
+
+    Raises:
+        ValidationError: If ``limit`` is out of range.
+    """
+    return {"limit": parse_int(args.get("limit"), "limit", default=8, minimum=1, maximum=50)}
+
+
+def validate_occurrence_body(body: Mapping[str, Any]) -> dict[str, datetime]:
+    """Validate the body for skipping or restoring one occurrence.
+
+    Args:
+        body: JSON body with ``occurrenceAt``.
+
+    Returns:
+        Keyword arguments for the schedule service.
+
+    Raises:
+        ValidationError: If ``occurrenceAt`` is missing or malformed.
+    """
+    return {"occurrence": require_datetime(body.get("occurrenceAt"), "occurrenceAt")}
+
+
+def validate_extra_run_body(body: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the body for scheduling a one-off extra run.
+
+    Args:
+        body: JSON body with ``applicationId`` and ``runAt``.
+
+    Returns:
+        Keyword arguments for the schedule service.
+
+    Raises:
+        ValidationError: If either field is missing or malformed.
+    """
+    return {
+        "application_id": require_uuid(body.get("applicationId"), "applicationId"),
+        "run_at": require_datetime(body.get("runAt"), "runAt"),
     }
 
 

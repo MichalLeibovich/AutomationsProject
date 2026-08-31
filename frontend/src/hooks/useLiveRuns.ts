@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useSetAtom } from 'jotai';
 import { applyLiveUpdateAtom } from '@/atoms/runtimeAtom';
+import { scheduleFailureEventAtom } from '@/atoms/scheduleFailureAtom';
 import { endpoints } from '@/api/endpoints';
-import type { LiveRunUpdate } from '@/types/run.types';
+import type { LiveRunUpdate, RunStatus } from '@/types/run.types';
 
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
@@ -20,7 +21,12 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/
  */
 export function useLiveRuns(enabled = true): void {
   const applyUpdate = useSetAtom(applyLiveUpdateAtom);
+  const setScheduleFailure = useSetAtom(scheduleFailureEventAtom);
   const attemptRef = useRef(0);
+  // Last status seen per run, scoped to this hook's lifetime — what makes a
+  // failure "just observed live" rather than "already failed before this tab
+  // connected," so reopening the dashboard does not re-alert for old news.
+  const lastStatusRef = useRef<Map<string, RunStatus>>(new Map());
 
   useEffect(() => {
     if (!enabled) return;
@@ -41,6 +47,22 @@ export function useLiveRuns(enabled = true): void {
       source.onmessage = (event: MessageEvent<string>) => {
         try {
           const payload = JSON.parse(event.data) as LiveRunUpdate;
+
+          const previousStatus = lastStatusRef.current.get(payload.runId);
+          const justFailed =
+            payload.status === 'failed' &&
+            (previousStatus === 'running' || previousStatus === 'queued') &&
+            payload.triggerSource === 'schedule';
+          lastStatusRef.current.set(payload.runId, payload.status);
+
+          if (justFailed) {
+            setScheduleFailure({
+              runId: payload.runId,
+              scopeLabel: payload.scopeLabel,
+              testName: payload.testName,
+            });
+          }
+
           applyUpdate({
             definitionId: payload.testDefinitionId,
             runId: payload.runId,
@@ -71,5 +93,5 @@ export function useLiveRuns(enabled = true): void {
       source?.close();
       if (reconnectTimer) window.clearTimeout(reconnectTimer);
     };
-  }, [enabled, applyUpdate]);
+  }, [enabled, applyUpdate, setScheduleFailure]);
 }

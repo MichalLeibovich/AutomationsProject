@@ -26,7 +26,7 @@ export interface AsyncState<T> {
  * dependency: callers usually pass an inline closure, which would change on
  * every render and loop.
  */
-function useAsync<T>(
+export function useAsync<T>(
   fetcher: () => Promise<T>,
   deps: unknown[],
   enabled = true,
@@ -83,6 +83,7 @@ export const useRunList = (params: RunListParams) =>
     [
       params.scope,
       params.status,
+      params.triggerSource,
       params.search,
       params.from,
       params.to,

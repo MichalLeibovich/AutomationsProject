@@ -10,3 +10,4 @@ gunicorn==22.0.0
 pytest
 playwright
 requests
+tzdata

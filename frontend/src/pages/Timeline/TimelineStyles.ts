@@ -26,6 +26,27 @@ export const useStyles = makeStyles()(() => ({
   },
   spacer: { flex: 1 },
   search: { width: 300 },
+  groupToggle: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: tokens.font.size.sm,
+    color: tokens.color.ink60,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+
+  groupToggleCheckbox: {
+    padding: 4,
+    '& .MuiSvgIcon-root': {
+      fontSize: 20,
+    },
+    '&.Mui-checked': {
+    },
+    '&:hover': {
+      backgroundColor: 'rgba(25, 118, 210, 0.08)',
+    },
+  },
 
   table: {
     '& .MuiTableCell-root': {

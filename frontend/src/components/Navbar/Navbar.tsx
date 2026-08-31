@@ -4,8 +4,10 @@ import ListIcon from '@mui/icons-material/ChecklistOutlined';
 import DashboardIcon from '@mui/icons-material/SpaceDashboardOutlined';
 import HistoryIcon from '@mui/icons-material/TimelineOutlined';
 import CalendarIcon from '@mui/icons-material/CalendarMonthOutlined';
+import ScheduleIcon from '@mui/icons-material/UpdateOutlined';
 import PlayIcon from '@mui/icons-material/PlayArrowRounded';
 import { Button } from '@/components/Button/Button';
+import { NotificationPermission } from '@/components/NotificationPermission/NotificationPermission';
 import { ScopeFilter } from '@/components/ScopeFilter/ScopeFilter';
 import { SegmentedControl } from '@/components/SegmentedControl/SegmentedControl';
 import { applicationsAtom, isGeneralScopeAtom, scopeFilterVisibleAtom } from '@/atoms/appAtom';
@@ -58,6 +60,11 @@ export const Navbar = ({
                 icon: <ListIcon fontSize="inherit" />
               },
               {
+                value: 'scheduled',
+                label: he.nav.scheduled,
+                icon: <ScheduleIcon fontSize="inherit" />,
+              },
+              {
                 value: 'timeline',
                 label: he.nav.timeline,
                 icon: <HistoryIcon fontSize="inherit" />
@@ -96,6 +103,7 @@ export const Navbar = ({
           )}
 
           <div className={classes.user}>
+            <NotificationPermission />
           </div>
         </div>
 

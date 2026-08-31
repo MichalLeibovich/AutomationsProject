@@ -128,6 +128,9 @@ class RunService:
                     "elapsedSeconds": max(0, elapsed),
                     "durationSeconds": row.get("duration_seconds"),
                     "failureReason": row.get("failure_reason"),
+                    "triggerSource": row.get("trigger_source"),
+                    "scopeLabel": row.get("scope_label"),
+                    "testName": row.get("test_name"),
                 }
             )
         return updates
@@ -470,12 +473,40 @@ class RunService:
         if not self._comments.soft_delete(comment_id):
             raise NotFoundError("ההערה לא נמצאה")
 
+    def was_already_created(self, idempotency_key: str) -> bool:
+        """Test whether a key has already been claimed by an earlier run.
+
+        Used by the scheduler purely to keep its "runs enqueued this tick"
+        count honest across overlapping ticks — the double-fire guarantee
+        itself comes from the database constraint :meth:`start_run` relies
+        on, not from this check.
+
+        Args:
+            idempotency_key: The key to check.
+
+        Returns:
+            True if a run already exists for this key.
+        """
+        return self._runs.find_by_idempotency_key(idempotency_key) is not None
+
+    def list_recent_scheduled(self, limit: int) -> list[TestRun]:
+        """List the most recent scheduler-originated runs.
+
+        Args:
+            limit: Maximum runs to return.
+
+        Returns:
+            The runs, most recently started first.
+        """
+        return self._runs.list_recent_scheduled(limit)
+
     # -- export -------------------------------------------------------------
     def iter_export_rows(self, filters: dict[str, Any]) -> Iterator[dict[str, Any]]:
         """Stream matching runs for CSV export.
 
         Args:
-            filters: Run filter with ``scope``, ``status`` and ``search`` keys.
+            filters: Run filter with ``scope``, ``status``, ``trigger_source`` and
+                ``search`` keys.
 
         Yields:
             One row per matching run, streamed from a server-side cursor.
@@ -483,6 +514,7 @@ class RunService:
         return self._runs.iter_for_export(
             scope=filters.get("scope"),
             status=filters.get("status"),
+            trigger_source=filters.get("trigger_source"),
             search=filters.get("search"),
         )
 

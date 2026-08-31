@@ -30,6 +30,7 @@ class RunRepository(BaseRepository):
         *,
         scope: str | None,
         status: str | None,
+        trigger_source: str | None = None,
         search: str | None,
         date_from: datetime | None,
         date_to: datetime | None,
@@ -44,6 +45,8 @@ class RunRepository(BaseRepository):
             scope: None for all applications, ``"general"``, or an application
                 name.
             status: Status to filter on; None or ``"all"`` disables the filter.
+            trigger_source: Trigger source to filter on; None disables the
+                filter — used by the history view's scheduled-only toggle.
             search: Full-text search term, or None.
             date_from: Earliest start time, inclusive, or None.
             date_to: Latest start time, inclusive, or None.
@@ -63,6 +66,7 @@ class RunRepository(BaseRepository):
         params: dict[str, Any] = {
             "scope": scope,
             "status": None if status in (None, "all") else status,
+            "trigger_source": trigger_source,
             "search": search or None,
             "date_from": date_from,
             "date_to": date_to,
@@ -118,8 +122,49 @@ class RunRepository(BaseRepository):
             queries.SELECT_ACTIVE_RUNS, {"limit": limit, "settle_window": settle_window}
         )
 
+    def find_by_idempotency_key(self, idempotency_key: str) -> TestRun | None:
+        """Load the run previously created for an idempotency key, if any.
+
+        Used only to tell an already-fired scheduled occurrence apart from a
+        newly-fired one for logging purposes — the actual double-fire
+        guarantee comes from the unique constraint :meth:`create` claims
+        against, not from this check.
+
+        Args:
+            idempotency_key: The key to look up.
+
+        Returns:
+            The run, or None if no claim exists for this key yet.
+        """
+        row = self.fetch_one(
+            queries.SELECT_RUN_BY_IDEMPOTENCY_KEY, {"idempotency_key": idempotency_key}
+        )
+        return self.map_one(row, TestRun.from_row)
+
+    def list_recent_scheduled(self, limit: int) -> list[TestRun]:
+        """List the most recent scheduler-originated runs.
+
+        Covers both recurring occurrences and one-off extra runs — both are
+        recorded with ``trigger_source='schedule'``; only the run's
+        ``idempotency_key`` prefix tells them apart (see
+        :mod:`utils.schedule_time`).
+
+        Args:
+            limit: Maximum runs to return.
+
+        Returns:
+            The runs, most recently started first.
+        """
+        rows = self.fetch_all(queries.SELECT_RECENT_SCHEDULED_RUNS, {"limit": limit})
+        return self.map_all(rows, TestRun.from_row)
+
     def iter_for_export(
-        self, *, scope: str | None, status: str | None, search: str | None
+        self,
+        *,
+        scope: str | None,
+        status: str | None,
+        trigger_source: str | None = None,
+        search: str | None,
     ) -> Iterator[dict[str, Any]]:
         """Stream every matching run for CSV export.
 
@@ -129,6 +174,7 @@ class RunRepository(BaseRepository):
         Args:
             scope: Scope filter, as in :meth:`list_paged`.
             status: Status filter; None or ``"all"`` disables it.
+            trigger_source: Trigger source filter; None disables it.
             search: Full-text search term, or None.
 
         Yields:
@@ -137,6 +183,7 @@ class RunRepository(BaseRepository):
         params = {
             "scope": scope,
             "status": None if status in (None, "all") else status,
+            "trigger_source": trigger_source,
             "search": search or None,
             "date_from": None,
             "date_to": None,

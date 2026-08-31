@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 from uuid import UUID
 
 
@@ -184,6 +184,10 @@ class TestRun:
         failed_steps: Steps that failed.
         artifact_count: Artifacts stored.
         failure: Failure detail, or None when the run did not fail.
+        idempotency_key: The key this run was created with. For a
+            scheduler-originated run this doubles as the durable record of
+            which occurrence produced it — see
+            :func:`utils.schedule_time.parse_idempotency_key`.
     """
 
     id: UUID
@@ -206,6 +210,7 @@ class TestRun:
     failed_steps: int
     artifact_count: int
     failure: RunFailure | None = None
+    idempotency_key: str | None = None
 
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> "TestRun":
@@ -256,6 +261,7 @@ class TestRun:
             failed_steps=row.get("failed_steps", 0),
             artifact_count=row.get("artifact_count", 0),
             failure=failure,
+            idempotency_key=row.get("idempotency_key"),
         )
 
     @property
@@ -446,6 +452,221 @@ class CalendarDay:
             failed=int(row["failed"]),
             preview=list(row.get("preview") or []),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class Schedule:
+    """A recurring automation firing rule.
+
+    Occurrences are never stored — they are computed on demand from
+    ``every_hours``, ``anchor_minute`` and ``timezone`` (see
+    :mod:`utils.schedule_time`). Bound to an application rather than a frozen
+    test definition, so it keeps firing whatever the application's main test
+    currently is.
+
+    Attributes:
+        id: Primary key.
+        application_id: The application this schedule runs the main test of.
+        every_hours: Interval between occurrences, in hours.
+        anchor_minute: Minute past each hour the schedule fires on.
+        timezone: IANA zone the rule is defined against.
+        is_active: Whether the schedule fires at all.
+        application_name: Owning application's name, joined for display.
+    """
+
+    id: UUID
+    application_id: UUID
+    every_hours: int
+    anchor_minute: int
+    timezone: str
+    is_active: bool
+    application_name: str | None = None
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> "Schedule":
+        """Build a schedule from a database row.
+
+        Args:
+            row: Row with the schedule columns.
+
+        Returns:
+            The mapped schedule.
+
+        Raises:
+            KeyError: If a mandatory column is absent.
+        """
+        return cls(
+            id=_uuid(row["id"]),  # type: ignore[arg-type]
+            application_id=_uuid(row["application_id"]),  # type: ignore[arg-type]
+            every_hours=row["every_hours"],
+            anchor_minute=row["anchor_minute"],
+            timezone=row["timezone"],
+            is_active=row.get("is_active", True),
+            application_name=row.get("application_name"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleSkip:
+    """One cancelled occurrence of a recurring schedule.
+
+    Attributes:
+        id: Primary key.
+        schedule_id: The schedule this skip belongs to.
+        occurrence: The UTC instant of the cancelled occurrence.
+        created_at: When it was cancelled.
+        restored_at: When it was undone, or None while still cancelled.
+    """
+
+    id: UUID
+    schedule_id: UUID
+    occurrence: datetime
+    created_at: datetime
+    restored_at: datetime | None
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> "ScheduleSkip":
+        """Build a skip from a database row.
+
+        Args:
+            row: Row with the skip columns.
+
+        Returns:
+            The mapped skip.
+
+        Raises:
+            KeyError: If a mandatory column is absent.
+        """
+        return cls(
+            id=_uuid(row["id"]),  # type: ignore[arg-type]
+            schedule_id=_uuid(row["schedule_id"]),  # type: ignore[arg-type]
+            occurrence=row["occurrence"],
+            created_at=row["created_at"],
+            restored_at=row.get("restored_at"),
+        )
+
+    @property
+    def is_active(self) -> bool:
+        """Whether the occurrence is still cancelled."""
+        return self.restored_at is None
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleExtraRun:
+    """A one-off scheduled run outside any recurring rule.
+
+    Created by the "+" control: a single run for one application at a chosen
+    time, independent of that application's recurring schedule.
+
+    Attributes:
+        id: Primary key.
+        application_id: The application to run.
+        run_at: The UTC instant it is scheduled for.
+        created_at: When it was added.
+        fired_at: When the scheduler enqueued it, or None while still pending.
+        application_name: Owning application's name, joined for display.
+    """
+
+    id: UUID
+    application_id: UUID
+    run_at: datetime
+    created_at: datetime
+    fired_at: datetime | None
+    application_name: str | None = None
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> "ScheduleExtraRun":
+        """Build an extra run from a database row.
+
+        Args:
+            row: Row with the extra-run columns.
+
+        Returns:
+            The mapped extra run.
+
+        Raises:
+            KeyError: If a mandatory column is absent.
+        """
+        return cls(
+            id=_uuid(row["id"]),  # type: ignore[arg-type]
+            application_id=_uuid(row["application_id"]),  # type: ignore[arg-type]
+            run_at=row["run_at"],
+            created_at=row["created_at"],
+            fired_at=row.get("fired_at"),
+            application_name=row.get("application_name"),
+        )
+
+    @property
+    def is_pending(self) -> bool:
+        """Whether the scheduler has not yet enqueued this run."""
+        return self.fired_at is None
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduledOccurrence:
+    """One entry in the upcoming/24h schedule view.
+
+    A computed view model rather than something read straight from a table:
+    it merges a recurring schedule's rule-derived occurrences with one-off
+    extra runs, and with any skip covering that occurrence, into one shape
+    the interface can render uniformly.
+
+    Attributes:
+        kind: ``"schedule"`` for a recurring occurrence, ``"extra"`` for a
+            one-off run.
+        occurrence: The UTC instant this automation is due to run.
+        application_id: The application it runs.
+        application_name: The application's display name.
+        schedule_id: The owning schedule, when ``kind == "schedule"``.
+        extra_run_id: The owning extra run, when ``kind == "extra"``.
+        skipped: Whether this occurrence has been cancelled. Only meaningful
+            for ``kind == "schedule"`` — an extra run that should not happen
+            is deleted outright rather than marked skipped.
+    """
+
+    kind: Literal["schedule", "extra"]
+    occurrence: datetime
+    application_id: UUID
+    application_name: str
+    schedule_id: UUID | None = None
+    extra_run_id: UUID | None = None
+    skipped: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduledRunEntry:
+    """One application's outcome within a grouped scheduled-run slot.
+
+    Attributes:
+        application_id: The application that ran.
+        application_name: The application's display name.
+        run_id: The resulting run.
+        status: The run's current status.
+    """
+
+    application_id: UUID
+    application_name: str
+    run_id: UUID
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduledRunGroup:
+    """Every scheduled run that shares one occurrence slot.
+
+    Two schedules with the same cadence — Magen Elyon and Harmony, both every
+    two hours — fire independently and land a few seconds or minutes apart in
+    ``started_at``. Grouping by the occurrence encoded in each run's
+    idempotency key, rather than by ``started_at`` itself, is what puts them
+    back together under one slot for display.
+
+    Attributes:
+        occurrence: The UTC instant shared by every entry in this group.
+        entries: One entry per application that ran in this slot.
+    """
+
+    occurrence: datetime
+    entries: list[ScheduledRunEntry]
 
 
 @dataclass(frozen=True, slots=True)

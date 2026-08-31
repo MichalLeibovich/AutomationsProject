@@ -51,4 +51,17 @@ export const endpoints = {
     dashboard: '/analytics/dashboard',
     calendar: '/analytics/calendar',
   },
+
+  schedules: {
+    list: '/schedules',
+    upcoming: '/schedules/upcoming',
+    recent: '/schedules/recent',
+    /** @param scheduleId - The schedule whose occurrence to cancel. */
+    skip: (scheduleId: string) => `/schedules/${scheduleId}/skip`,
+    /** @param scheduleId - The schedule whose occurrence to un-cancel. */
+    restore: (scheduleId: string) => `/schedules/${scheduleId}/restore`,
+    createExtra: '/schedules/extra',
+    /** @param extraRunId - The one-off run to remove before it fires. */
+    deleteExtra: (extraRunId: string) => `/schedules/extra/${extraRunId}`,
+  },
 } as const;

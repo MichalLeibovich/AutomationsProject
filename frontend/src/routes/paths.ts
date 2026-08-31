@@ -11,6 +11,7 @@ export const paths = {
   dashboard: '/dashboard',
   timeline: '/timeline',
   calendar: '/calendar',
+  scheduled: '/scheduled',
   notFound: '*',
 } as const;
 

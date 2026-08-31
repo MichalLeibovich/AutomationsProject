@@ -26,6 +26,7 @@ import { pushToastAtom } from '@/atoms/toastAtom';
 import { useApplications } from '@/hooks/useRuns';
 import { useDayRuns } from '@/hooks/useRuns';
 import { useLiveRuns } from '@/hooks/useLiveRuns';
+import { useScheduleFailureNotifications } from '@/hooks/useScheduleFailureNotifications';
 import { he } from '@/locales/he';
 import { paths } from '@/routes/paths';
 import { runService } from '@/services/runService';
@@ -57,6 +58,7 @@ export const AppLayout = () => {
   const { data: applications } = useApplications();
 
   useLiveRuns();
+  useScheduleFailureNotifications();
 
   useEffect(() => {
     if (applications) setApplications(applications);
