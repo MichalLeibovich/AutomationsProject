@@ -224,7 +224,7 @@ export const RunDebrief = forwardRef<RunDebriefHandle, { run: TestRun }>(({ run 
                   {value}
                 </div>
                 <Tooltip
-                  title="Copied!"
+                  title="הועתק"
                   placement="top"
                   open={copiedId === value}
                 >
