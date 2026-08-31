@@ -61,7 +61,7 @@ export const RunDebrief = forwardRef<RunDebriefHandle, { run: TestRun }>(({ run 
   const pushToast = useSetAtom(pushToastAtom);
 
   const [draft, setDraft] = useState('');
-  const [authorName, setAuthorName] = useState('');
+  // const [authorName, setAuthorName] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
 
