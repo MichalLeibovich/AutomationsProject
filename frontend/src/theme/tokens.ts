@@ -18,6 +18,8 @@ export const tokens = {
     canvas: '#EDF2FA',
     surface: '#FFFFFF',
 
+    // focusedComment: '#dfe1e4',
+
     line: 'rgba(10,36,78,.09)',
     lineStrong: 'rgba(10,36,78,.16)',
 

@@ -84,18 +84,49 @@ const toDateValue = (value: string): Date | null => (value ? parseISO(value) : n
 
 const toDraftValue = (value: Date | null): string => (value ? format(value, 'yyyy-MM-dd') : '');
 
+/**
+ * Earliest date a custom range may start at.
+ *
+ * There is no run history before this, so offering earlier dates would only ever
+ * produce an empty chart. Bounding the picker means the limit is visible as
+ * greyed-out cells rather than discovered through a validation error.
+ */
+const MIN_SELECTABLE_DATE = new Date(2023, 9, 7);
+
 const CalendarHeader = ({
   currentMonth,
   onMonthChange,
   disabled,
 }: PickersCalendarHeaderProps<Date>) => {
+  const { classes } = useStyles();
   const [menu, setMenu] = useState<'month' | 'year' | null>(null);
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+
+  const today = new Date();
+  const viewedYear = currentMonth.getFullYear();
+  const isCurrentYear = viewedYear === today.getFullYear();
+  const isFutureYear = viewedYear > today.getFullYear();
+  const isEarliestYear = viewedYear === MIN_SELECTABLE_DATE.getFullYear();
+
   const months = Array.from({ length: 12 }, (_, month) => ({
     month,
     label: format(setMonth(startOfMonth(currentMonth), month), 'LLLL', { locale: hebrewLocale }),
+    // Bounded at both ends: a custom range can reach neither the future nor
+    // further back than the earliest history, so an unreachable month is inert
+    // rather than clickable-then-rejected.
+    disabled:
+      isFutureYear ||
+      (isCurrentYear && month > today.getMonth()) ||
+      (isEarliestYear && month < MIN_SELECTABLE_DATE.getMonth()),
   }));
-  const years = Array.from({ length: 15 }, (_, index) => currentMonth.getFullYear() - 7 + index);
+
+  // The whole selectable span is four years, so every year fits in one panel.
+  // Paging through decades was machinery for a range that does not exist.
+  const years = Array.from(
+    { length: today.getFullYear() - MIN_SELECTABLE_DATE.getFullYear() + 1 },
+    (_, index) => ({ year: today.getFullYear() - index }),
+  );
+
   const openMenu = (
     event: React.MouseEvent<HTMLButtonElement>,
     nextMenu: 'month' | 'year',
@@ -110,7 +141,7 @@ const CalendarHeader = ({
 
   return (
     <div className="dashboard-date-picker-header">
-            <IconButton
+      <IconButton
         size="small"
         aria-label="החודש הקודם"
         disabled={disabled}
@@ -118,7 +149,7 @@ const CalendarHeader = ({
       >
         <ChevronRightIcon fontSize="small" />
       </IconButton>
-      
+
       <div className="dashboard-date-picker-heading">
         <button type="button" onClick={(event) => openMenu(event, 'month')}>
           {format(currentMonth, 'LLLL', { locale: hebrewLocale })}
@@ -144,15 +175,17 @@ const CalendarHeader = ({
         disableScrollLock
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-        slotProps={{ paper: { className: 'dashboard-date-picker-menu' } }}
+        slotProps={{ paper: { className: classes.datePickerMenu } }}
       >
         {menu === 'month' ? (
           <div className="dashboard-date-picker-month-grid">
-            {months.map(({ month, label }) => (
+            {months.map(({ month, label, disabled: monthDisabled }) => (
               <button
                 key={month}
                 type="button"
+                disabled={monthDisabled}
                 className={month === currentMonth.getMonth() ? 'is-selected' : undefined}
+                data-today={isCurrentYear && month === today.getMonth() ? true : undefined}
                 onClick={() => {
                   onMonthChange(setMonth(startOfMonth(currentMonth), month), 'left');
                   closeMenu();
@@ -164,11 +197,12 @@ const CalendarHeader = ({
           </div>
         ) : (
           <div className="dashboard-date-picker-year-list">
-            {years.map((year) => (
+            {years.map(({ year }) => (
               <button
                 key={year}
                 type="button"
                 className={year === currentMonth.getFullYear() ? 'is-selected' : undefined}
+                data-today={year === today.getFullYear() ? true : undefined}
                 onClick={() => {
                   onMonthChange(setYear(currentMonth, year), 'left');
                   closeMenu();
@@ -249,6 +283,7 @@ export const Dashboard = () => {
                   format="dd/MM/yyyy"
                   views={['year', 'month', 'day']}
                   openTo="day"
+                  minDate={MIN_SELECTABLE_DATE}
                   maxDate={toDateValue(draft.to) ?? toDateValue(today) ?? undefined}
                   slots={{ calendarHeader: CalendarHeader }}
                   slotProps={{
@@ -279,7 +314,7 @@ export const Dashboard = () => {
                   format="dd/MM/yyyy"
                   views={['year', 'month', 'day']}
                   openTo="day"
-                  minDate={toDateValue(draft.from) ?? undefined}
+                  minDate={toDateValue(draft.from) ?? MIN_SELECTABLE_DATE}
                   maxDate={toDateValue(today) ?? undefined}
                   slots={{ calendarHeader: CalendarHeader }}
                   slotProps={{

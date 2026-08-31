@@ -38,20 +38,34 @@ export const useStyles = makeStyles()(() => ({
     gap: 1,
     borderRadius: tokens.radius.control,
     overflow: 'hidden',
-    background: tokens.color.line,
+    textAlign: "center",
+    // background: tokens.color.line,
+    // backgroundColor: "red",
   },
   metaCell: {
     background: tokens.color.surface,
     padding: '11px 13px',
+    // backgroundColor: "black"
   },
   metaLabel: {
     fontSize: tokens.font.size.xs,
     fontWeight: 640,
+    marginBottom: 3,
     color: tokens.color.ink40,
   },
   metaValue: {
-    marginTop: 3,
     fontWeight: tokens.font.weight.semibold,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    direction: 'rtl',
+  },
+
+  idValue: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+
   },
 
   sectionTitle: {
@@ -122,6 +136,7 @@ export const useStyles = makeStyles()(() => ({
     marginTop: 2,
     fontSize: tokens.font.size.base,
     overflowWrap: 'anywhere',
+    whiteSpace: 'pre-wrap',
   },
 
   authorInput: {
@@ -131,25 +146,34 @@ export const useStyles = makeStyles()(() => ({
   },
 
   composerRow: {
-
     display: 'flex',
-
+    flexDirection: 'column',
     alignItems: 'center',
-
-    gap: 8,
-
+    gap: 10,
+    width: '100%',
   },
 
   composer: { display: 'flex', gap: 8 },
   composerInput: {
-    flex: 1,
+    width: '95%',
+
     '& .MuiOutlinedInput-root': {
       borderRadius: tokens.radius.control,
       background: tokens.color.tintSoft,
+      height: '80px',
       fontSize: tokens.font.size.base,
-      '& fieldset': { border: 0 },
+
+      '& .MuiInputBase-inputMultiline': {
+        height: '100% !important',
+        boxSizing: 'border-box',
+        textAlign: 'start',
+      },
+
+      '& fieldset': {
+        border: 0,
+      },
+
       '&.Mui-focused': {
-        background: tokens.color.surface,
         boxShadow: `inset 0 0 0 1.5px ${tokens.color.running}`,
       },
     },

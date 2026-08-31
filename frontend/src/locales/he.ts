@@ -7,7 +7,7 @@ export const he = {
     name: 'NOC Test',
     tagline: (apps: number) => `${apps} אפליקציות · אוטומציה כללית`,
   },
-
+ 
   nav: {
     tests: 'בדיקות',
     dashboard: 'לוח בקרה',
@@ -15,14 +15,14 @@ export const he = {
     calendar: 'יומן',
     signOut: 'התנתקות',
   },
-
+ 
   scope: {
     allApps: 'כל האפליקציות',
     general: 'כללי',
     generalTooltip: 'אוטומציה משותפת שאינה משויכת לאפליקציה מסוימת',
     label: 'תחום',
   },
-
+ 
   actions: {
     runAllMain: 'הרצת כל הבדיקות הראשיות',
     run: 'הרץ',
@@ -41,7 +41,7 @@ export const he = {
     retry: 'נסו שוב',
     signIn: 'התחברות',
   },
-
+ 
   status: {
     passed: 'עברה',
     failed: 'נכשלה',
@@ -51,7 +51,7 @@ export const he = {
     timed_out: 'פסק זמן',
     idle: 'טרם הורצה',
   },
-
+ 
   tests: {
     secondary: 'בדיקות משניות',
     filterSecondary: 'סינון בדיקות משניות',
@@ -71,13 +71,16 @@ export const he = {
     confirmPrivilegedBody: (name: string) =>
       `"${name}" משנה הרשאות בסביבת הייצור. הפעולה תירשם ביומן הביקורת. להמשיך?`,
   },
-
+ 
   dashboard: {
     timeRange: 'טווח זמן',
     generalAutomation: 'אוטומציה כללית',
     allAppsScope: (count: number) => `כל האפליקציות · ${count} מוצרים`,
     rangeOrderError: 'תאריך ההתחלה חייב להיות לפני תאריך הסיום',
     rangeFutureError: 'לא ניתן לבחור תאריך עתידי',
+    // Run history begins on this date; anything earlier is not a narrower
+    // query, it's an empty one — so the picker refuses it and says why.
+    rangeTooEarlyError: 'לא ניתן לבחור תאריך לפני 7 באוקטובר 2023',
     from: 'מתאריך',
     to: 'עד תאריך',
     ranges: { hour: 'שעה אחרונה', day: '24 שעות', week: '7 ימים', custom: 'מותאם' },
@@ -104,12 +107,12 @@ export const he = {
     noRuns: 'אין ריצות בטווח הזה',
     noRunsBody: 'הרחיבו את הטווח או בטלו את סינון האפליקציה כדי לראות פעילות נוספת.',
   },
-
+ 
   timeline: {
     title: 'היסטוריית ריצות',
     count: (shown: number, total: number, scope: string) =>
       `${shown} מתוך ${total} ריצות · ${scope}`,
-    searchPlaceholder: 'חיפוש לפי אפליקציה, בדיקה, מפעיל או שגיאה',
+    searchPlaceholder: 'חיפוש לפי מערכת, בדיקה, מפעיל או שגיאה',
     all: 'הכל',
     columns: {
       scope: 'תחום',
@@ -127,7 +130,7 @@ export const he = {
     exportStarted: 'הייצוא החל. הקובץ יורד בסיום העיבוד.',
     exportReady: 'הייצוא מוכן להורדה.',
   },
-
+ 
   calendar: {
     monthSummary: (total: number, failed: number) => `${total} ריצות · ${failed} נכשלו`,
     prevMonth: 'החודש הקודם',
@@ -136,7 +139,7 @@ export const he = {
     more: (count: number) => `עוד ${count}`,
     weekdays: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'],
   },
-
+ 
   panel: {
     anonymous: 'אנונימי',
     authorPlaceholder: 'שם (לא חובה)',
@@ -150,13 +153,21 @@ export const he = {
     endedAt: 'הסתיימה',
     duration: 'משך',
     runBy: 'הורץ על ידי',
+    runId: 'מזהה ריצה',
     whatWentWrong: 'מה השתבש',
     screenshots: 'צילומי מסך',
     comments: 'הערות',
     noComments: 'אין עדיין הערות. הוסיפו הערה ראשונה כדי שהמשמרת הבאה תדע במה מדובר.',
     commentPlaceholder: 'הוסיפו הערה לצוות',
   },
-
+ 
+  /** Section labels for the downloadable plain-text run report. */
+  report: {
+    details: 'פרטי ריצה',
+    status: 'סטטוס',
+    noComments: 'אין הערות לריצה זו.',
+  },
+ 
   login: {
     title: 'התחברות למערכת',
     subtitle: 'ניהול בדיקות ואוטומציה',
@@ -164,7 +175,7 @@ export const he = {
     password: 'סיסמה',
     invalid: 'פרטי ההתחברות שגויים',
   },
-
+ 
   errors: {
     generic: 'משהו השתבש. נסו לרענן את הדף.',
     network: 'לא ניתן להתחבר לשרת. בדקו את החיבור ונסו שוב.',
@@ -180,5 +191,6 @@ export const he = {
     backHome: 'חזרה לבדיקות',
   },
 } as const;
-
+ 
 export type Copy = typeof he;
+ 

@@ -1,11 +1,13 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAtomValue, useSetAtom } from 'jotai';
+import DownloadIcon from '@mui/icons-material/FileDownloadOutlined';
 import { Button } from '@/components/Button/Button';
 import { DetailPanel } from '@/components/DetailPanel/DetailPanel';
 import { DayDetail, DayDetailHeader } from '@/components/DayDetail/DayDetail';
 import { Navbar } from '@/components/Navbar/Navbar';
 import { RunDebrief, RunDebriefHeader } from '@/components/RunDebrief/RunDebrief';
+import type { RunDebriefHandle } from '@/components/RunDebrief/RunDebrief';
 import {
   activeViewAtom,
   applicationsAtom,
@@ -154,10 +156,16 @@ const RunPanel = ({
   onBack?: () => void;
 }) => {
   const panelTop = useAtomValue(panelTopAtom);
+  // Lets the footer trigger the download without duplicating the
+  // comments/artifacts fetch that RunDebrief already owns.
+  const debriefRef = useRef<RunDebriefHandle>(null);
 
   if (panelTop?.kind !== 'run' || panelTop.run.id !== runId) return null;
   const { run } = panelTop;
 
+  const handleDownloadReport = () => {
+    debriefRef.current?.downloadReport();
+  };
 
   return (
     <DetailPanel
@@ -167,12 +175,22 @@ const RunPanel = ({
       onBack={onBack}
       header={<RunDebriefHeader run={run} />}
       footer={
-        <Button variant="ghost" onClick={onClose}>
-          {he.actions.close}
-        </Button>
+        <>
+          <Button
+            variant="tint"
+            onClick={handleDownloadReport}
+            data-testid="download-report-button"
+          >
+            <DownloadIcon sx={{ fontSize: 15 }} />
+            {he.actions.downloadReport}
+          </Button>
+          <Button variant="ghost" onClick={onClose}>
+            {he.actions.close}
+          </Button>
+        </>
       }
     >
-      <RunDebrief run={run} />
+      <RunDebrief ref={debriefRef} run={run} />
     </DetailPanel>
   );
 };
