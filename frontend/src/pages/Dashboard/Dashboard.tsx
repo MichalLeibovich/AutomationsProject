@@ -46,6 +46,77 @@ const AXIS = {
   tickLine: false,
 };
 
+/**
+ * Width reserved for the category axis, sized to the longest label.
+ *
+ * @param names - The category labels about to be rendered.
+ * @returns A pixel width for the axis.
+ */
+const FEATURE_AXIS_MIN = 110;
+const FEATURE_AXIS_MAX = 210;
+/** Approximate advance width of one Hebrew character at the axis font size. */
+const FEATURE_CHAR_WIDTH = 6.4;
+/**
+ * Longest label drawn in full.
+ *
+ * Chosen so the widest label still fits inside {@link FEATURE_AXIS_MAX}. Beyond
+ * this the name is trimmed with an ellipsis rather than allowed to push the
+ * axis wider, which would squeeze the bars into nothing on a narrow card. The
+ * full name stays available on hover.
+ */
+const FEATURE_MAX_CHARS = 30;
+
+const featureAxisWidth = (names: string[]): number => {
+  const longest = names.reduce(
+    (max, name) => Math.max(max, Math.min(name.length, FEATURE_MAX_CHARS)),
+    0,
+  );
+  return Math.min(FEATURE_AXIS_MAX, Math.max(FEATURE_AXIS_MIN, longest * FEATURE_CHAR_WIDTH + 20));
+};
+
+/**
+ * Category label for the failures chart, drawn beside the bar it belongs to.
+ *
+ * Recharts' own tick renders through its `Text` component, which measures the
+ * string to decide where to break lines. That measurement misreads Hebrew badly
+ * enough to wrap after a single character, which is what produced a column of
+ * stray letters instead of a name. Drawing the label directly skips the
+ * measuring entirely, so the text is never broken.
+ *
+ * `direction: ltr` on the element is deliberate and does not reverse anything:
+ * the label is one Hebrew run, so its glyphs still order right-to-left, but the
+ * text box now grows rightward from `x`. Under the inherited RTL direction it
+ * would grow leftward instead and sit on top of the bar.
+ */
+const FeatureTick = ({
+  x = 0,
+  y = 0,
+  payload,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string | number };
+}) => {
+  const full = String(payload?.value ?? '');
+  const shown = full.length > FEATURE_MAX_CHARS ? `${full.slice(0, FEATURE_MAX_CHARS - 1)}…` : full;
+
+  return (
+    <text
+      x={x + 8}
+      y={y}
+      textAnchor="start"
+      dominantBaseline="central"
+      fontSize={11}
+      fill={tokens.color.ink40}
+      style={{ direction: 'ltr' }}
+    >
+      {/* Native SVG tooltip, so a trimmed name is still readable in full. */}
+      {shown !== full && <title>{full}</title>}
+      {shown}
+    </text>
+  );
+};
+
 const TOOLTIP = {
   contentStyle: {
     borderRadius: 12,
@@ -84,18 +155,49 @@ const toDateValue = (value: string): Date | null => (value ? parseISO(value) : n
 
 const toDraftValue = (value: Date | null): string => (value ? format(value, 'yyyy-MM-dd') : '');
 
+/**
+ * Earliest date a custom range may start at.
+ *
+ * There is no run history before this, so offering earlier dates would only ever
+ * produce an empty chart. Bounding the picker means the limit is visible as
+ * greyed-out cells rather than discovered through a validation error.
+ */
+const MIN_SELECTABLE_DATE = new Date(2023, 9, 7);
+
 const CalendarHeader = ({
   currentMonth,
   onMonthChange,
   disabled,
 }: PickersCalendarHeaderProps<Date>) => {
+  const { classes } = useStyles();
   const [menu, setMenu] = useState<'month' | 'year' | null>(null);
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+
+  const today = new Date();
+  const viewedYear = currentMonth.getFullYear();
+  const isCurrentYear = viewedYear === today.getFullYear();
+  const isFutureYear = viewedYear > today.getFullYear();
+  const isEarliestYear = viewedYear === MIN_SELECTABLE_DATE.getFullYear();
+
   const months = Array.from({ length: 12 }, (_, month) => ({
     month,
     label: format(setMonth(startOfMonth(currentMonth), month), 'LLLL', { locale: hebrewLocale }),
+    // Bounded at both ends: a custom range can reach neither the future nor
+    // further back than the earliest history, so an unreachable month is inert
+    // rather than clickable-then-rejected.
+    disabled:
+      isFutureYear ||
+      (isCurrentYear && month > today.getMonth()) ||
+      (isEarliestYear && month < MIN_SELECTABLE_DATE.getMonth()),
   }));
-  const years = Array.from({ length: 15 }, (_, index) => currentMonth.getFullYear() - 7 + index);
+
+  // The whole selectable span is four years, so every year fits in one panel.
+  // Paging through decades was machinery for a range that does not exist.
+  const years = Array.from(
+    { length: today.getFullYear() - MIN_SELECTABLE_DATE.getFullYear() + 1 },
+    (_, index) => ({ year: today.getFullYear() - index }),
+  );
+
   const openMenu = (
     event: React.MouseEvent<HTMLButtonElement>,
     nextMenu: 'month' | 'year',
@@ -110,7 +212,7 @@ const CalendarHeader = ({
 
   return (
     <div className="dashboard-date-picker-header">
-            <IconButton
+      <IconButton
         size="small"
         aria-label="החודש הקודם"
         disabled={disabled}
@@ -118,7 +220,7 @@ const CalendarHeader = ({
       >
         <ChevronRightIcon fontSize="small" />
       </IconButton>
-      
+
       <div className="dashboard-date-picker-heading">
         <button type="button" onClick={(event) => openMenu(event, 'month')}>
           {format(currentMonth, 'LLLL', { locale: hebrewLocale })}
@@ -144,15 +246,17 @@ const CalendarHeader = ({
         disableScrollLock
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-        slotProps={{ paper: { className: 'dashboard-date-picker-menu' } }}
+        slotProps={{ paper: { className: classes.datePickerMenu } }}
       >
         {menu === 'month' ? (
           <div className="dashboard-date-picker-month-grid">
-            {months.map(({ month, label }) => (
+            {months.map(({ month, label, disabled: monthDisabled }) => (
               <button
                 key={month}
                 type="button"
+                disabled={monthDisabled}
                 className={month === currentMonth.getMonth() ? 'is-selected' : undefined}
+                data-today={isCurrentYear && month === today.getMonth() ? true : undefined}
                 onClick={() => {
                   onMonthChange(setMonth(startOfMonth(currentMonth), month), 'left');
                   closeMenu();
@@ -164,11 +268,12 @@ const CalendarHeader = ({
           </div>
         ) : (
           <div className="dashboard-date-picker-year-list">
-            {years.map((year) => (
+            {years.map(({ year }) => (
               <button
                 key={year}
                 type="button"
                 className={year === currentMonth.getFullYear() ? 'is-selected' : undefined}
+                data-today={year === today.getFullYear() ? true : undefined}
                 onClick={() => {
                   onMonthChange(setYear(currentMonth, year), 'left');
                   closeMenu();
@@ -249,6 +354,7 @@ export const Dashboard = () => {
                   format="dd/MM/yyyy"
                   views={['year', 'month', 'day']}
                   openTo="day"
+                  minDate={MIN_SELECTABLE_DATE}
                   maxDate={toDateValue(draft.to) ?? toDateValue(today) ?? undefined}
                   slots={{ calendarHeader: CalendarHeader }}
                   slotProps={{
@@ -279,7 +385,7 @@ export const Dashboard = () => {
                   format="dd/MM/yyyy"
                   views={['year', 'month', 'day']}
                   openTo="day"
-                  minDate={toDateValue(draft.from) ?? undefined}
+                  minDate={toDateValue(draft.from) ?? MIN_SELECTABLE_DATE}
                   maxDate={toDateValue(today) ?? undefined}
                   slots={{ calendarHeader: CalendarHeader }}
                   slotProps={{
@@ -439,16 +545,18 @@ export const Dashboard = () => {
                   <BarChart
                     data={data.failuresByFeature}
                     layout="vertical"
-                    margin={{ top: 0, right: 8, left: 16, bottom: 0 }}
+                    margin={{ top: 0, right: 8, left: 4, bottom: 0 }}
                   >
                     <CartesianGrid horizontal={false} stroke="rgba(10,36,78,.07)" />
                     <XAxis type="number" {...AXIS} allowDecimals={false} reversed />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      width={128}
+                      width={featureAxisWidth(data.failuresByFeature.map((f) => f.name))}
                       orientation="right"
-                      {...AXIS}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={<FeatureTick />}
                     />
                     <Tooltip {...TOOLTIP} cursor={{ fill: 'rgba(10,36,78,.045)' }} />
                     <Bar dataKey="count" name={he.dashboard.failuresUnit} radius={[7, 0, 0, 7]} barSize={18}>

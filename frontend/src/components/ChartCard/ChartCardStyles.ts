@@ -19,5 +19,18 @@ export const useStyles = makeStyles<{ height: number }>()((_theme, { height }) =
     fontSize: tokens.font.size.sm,
     color: tokens.color.ink40,
   },
-  body: { height },
+  body: {
+    height,
+
+    /**
+     * An SVG clips anything drawn outside its bounds, so a category label that
+     * is even slightly wider than the axis reserved for it is cut mid-word
+     * rather than overflowing visibly. Allowing the surface to paint outside
+     * means a long component name degrades into spilling over the card's inner
+     * padding instead of being silently truncated.
+     *
+     * The card itself still clips, so nothing escapes into the layout.
+     */
+    '& .recharts-surface': { overflow: 'visible' },
+  },
 }));

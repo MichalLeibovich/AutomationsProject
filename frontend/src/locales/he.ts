@@ -150,6 +150,7 @@ export const he = {
     endedAt: 'הסתיימה',
     duration: 'משך',
     runBy: 'הורץ על ידי',
+    runId: "מזהה ריצה",
     whatWentWrong: 'מה השתבש',
     screenshots: 'צילומי מסך',
     comments: 'הערות',
@@ -178,6 +179,15 @@ export const he = {
     notFoundTitle: 'הדף לא נמצא',
     notFoundBody: 'הכתובת שהזנתם אינה קיימת במערכת.',
     backHome: 'חזרה לבדיקות',
+  },
+
+  report: {
+    title: 'דוח ריצה',
+    details: 'פרטי הריצה',
+    status: "סטטוס",
+    subtitle: (runId: string) => `מזהה ריצה: ${runId}`,
+    download: 'הורדת דוח',
+    noComments: 'לא נכתבו הערות על ריצה זו.',
   },
 } as const;
 
