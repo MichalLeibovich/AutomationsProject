@@ -27,6 +27,7 @@ export const useStyles = makeStyles()(() => ({
     fontWeight: tokens.font.weight.semibold,
   },
   spacer: { flex: 1 },
+  search: { width: 260 },
 
   grid: {
     // display: 'grid',

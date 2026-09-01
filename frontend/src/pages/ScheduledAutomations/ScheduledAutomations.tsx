@@ -27,6 +27,7 @@ import { addMonths, format, isSameDay, setMonth, setYear, startOfMonth } from 'd
 import { Button } from '@/components/Button/Button';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { IdentityDot } from '@/components/IdentityDot/IdentityDot';
+import { SearchField } from '@/components/SearchField/SearchField';
 import { applicationsAtom } from '@/atoms/appAtom';
 import { pushToastAtom } from '@/atoms/toastAtom';
 import { useConfirm } from '@/contexts/ConfirmContext/ConfirmContext';
@@ -170,8 +171,21 @@ export const ScheduledAutomations = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const occurrences = upcoming ?? [];
+
+  // The 24h list filtered by system name or time-of-day, so a busy schedule
+  // can be narrowed down without touching the "about to run" tiles above it.
+  const searchedOccurrences = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return occurrences;
+    return occurrences.filter(
+      (occurrence) =>
+        occurrence.applicationName.toLowerCase().includes(query) ||
+        formatTime(occurrence.occurrenceAt).includes(query),
+    );
+  }, [occurrences, searchQuery]);
 
   // Active schedules bucketed by cadence, so "every 2 hours" and "every 4
   // hours" each list their systems once rather than once per system.
@@ -204,7 +218,7 @@ export const ScheduledAutomations = () => {
     const order: string[] = [];
     const buckets = new Map<string, ScheduledOccurrence[]>();
 
-    for (const occurrence of occurrences) {
+    for (const occurrence of searchedOccurrences) {
       if (!buckets.has(occurrence.occurrenceAt)) {
         buckets.set(occurrence.occurrenceAt, []);
         order.push(occurrence.occurrenceAt);
@@ -213,7 +227,7 @@ export const ScheduledAutomations = () => {
     }
 
     return order.map((occurrenceAt) => ({ occurrenceAt, items: buckets.get(occurrenceAt)! }));
-  }, [occurrences]);
+  }, [searchedOccurrences]);
 
   // The headline "about to run" tiles: the single next non-cancelled
   // occurrence per application, not the full 24h list.
@@ -378,6 +392,14 @@ export const ScheduledAutomations = () => {
       <section className={classes.card}>
         <div className={classes.cardHeader}>
           <div className={classes.title}>{he.schedule.next24hTitle}</div>
+          <div className={classes.search}>
+            <SearchField
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder={he.schedule.searchPlaceholder}
+              testId="occurrence-search"
+            />
+          </div>
           <div className={classes.spacer} />
 
           {editMode && selectedOccurrences.length > 0 && (
@@ -421,7 +443,7 @@ export const ScheduledAutomations = () => {
           )}
         </div>
 
-        {!upcomingLoading && occurrences.length === 0 ? (
+        {!upcomingLoading && searchedOccurrences.length === 0 ? (
           <EmptyState icon={<UpdateOutlined fontSize="inherit" />} title={he.schedule.noUpcoming} />
         ) : (
           <div className={classes.groupList}>

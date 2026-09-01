@@ -6,7 +6,7 @@ const toDate = (value: string | Date): Date => (value instanceof Date ? value : 
 export const formatDuration = (seconds: number | null | undefined): string => {
   if (seconds == null) return '—';
   if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60} seconds`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 };
 
 /** "0:07" — for the live elapsed counter. */

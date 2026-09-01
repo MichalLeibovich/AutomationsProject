@@ -163,6 +163,7 @@ export const he = {
   schedule: {
     upcomingTitle: 'אוטומציות הבאות שעתידות לרוץ',
     next24hTitle: 'תזמון 24 השעות הקרובות',
+    searchPlaceholder: 'חיפוש לפי מערכת או זמן',
     noUpcoming: 'אין אוטומציות מתוזמנות בטווח הקרוב',
     skipped: 'בוטל',
     restore: 'שחזור',
