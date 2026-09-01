@@ -173,7 +173,13 @@ def occurrences_between(
     if pending_every_hours <= 0:
         raise ValueError("pending_every_hours must be positive")
 
-    pivot = pending_effective_after
+    # Normalized regardless of the tzinfo it arrived with — `pending_effective_after`
+    # comes from a `timestamptz` column, and how a database driver renders that
+    # (which zone's offset it attaches) is not something this function should have
+    # to trust. Every occurrence below is derived from `pivot` by plain timedelta
+    # arithmetic, which preserves whatever tzinfo it starts with, so this is the
+    # one place that needs to enforce the UTC guarantee this function documents.
+    pivot = pending_effective_after.astimezone(UTC)
     results: list[datetime] = []
 
     if start_utc <= pivot:

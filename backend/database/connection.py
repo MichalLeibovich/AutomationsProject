@@ -55,7 +55,15 @@ def init_pool() -> pg_pool.ThreadedConnectionPool:
                 maxconn=settings.max_connections,
                 dsn=settings.dsn,
                 cursor_factory=psycopg2.extras.RealDictCursor,
-                options=f"-c statement_timeout={settings.statement_timeout_ms}",
+                # Without this, `timestamptz` columns come back rendered in
+                # whatever zone the server/role defaults to (locally, Asia/Jerusalem)
+                # rather than UTC — every other UTC-aware datetime in this codebase
+                # (computed in Python) would then silently disagree in tzinfo with
+                # one read straight from the database, even when they represent the
+                # same instant.
+                options=(
+                    f"-c statement_timeout={settings.statement_timeout_ms} -c TimeZone=UTC"
+                ),
                 application_name=get_config().logging.service_name,
             )
         except psycopg2.Error as exc:
