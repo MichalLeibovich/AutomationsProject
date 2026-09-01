@@ -162,10 +162,8 @@ export const he = {
  
   schedule: {
     upcomingTitle: 'אוטומציות הבאות שעתידות לרוץ',
-    recentTitle: 'אוטומציות מתוזמנות אחרונות שרצו',
     next24hTitle: 'תזמון 24 השעות הקרובות',
     noUpcoming: 'אין אוטומציות מתוזמנות בטווח הקרוב',
-    noRecent: 'עדיין לא רצה אף אוטומציה מתוזמנת',
     skipped: 'בוטל',
     restore: 'שחזור',
     addRun: 'הוספת ריצה מתוזמנת',
@@ -191,6 +189,7 @@ export const he = {
     edit: 'עריכה',
     doneEditing: 'סיום עריכה',
     clearSelection: 'ניקוי בחירה',
+    selectGroup: (time: string): string => `בחירת כל הריצות בשעה ${time}`,
     frequencyTitle: 'תדירות הרצת האוטומציות',
     frequencyTestName: 'בדיקת שפיות - טעינת האתר',
     noFrequency: 'לא הוגדרו אוטומציות מתוזמנות פעילות',

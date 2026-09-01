@@ -27,12 +27,10 @@ import { addMonths, format, isSameDay, setMonth, setYear, startOfMonth } from 'd
 import { Button } from '@/components/Button/Button';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { IdentityDot } from '@/components/IdentityDot/IdentityDot';
-import { StatusBadge } from '@/components/StatusBadge/StatusBadge';
 import { applicationsAtom } from '@/atoms/appAtom';
-import { runtimeByRunIdAtom } from '@/atoms/runtimeAtom';
 import { pushToastAtom } from '@/atoms/toastAtom';
 import { useConfirm } from '@/contexts/ConfirmContext/ConfirmContext';
-import { useRecentScheduledRuns, useSchedules, useUpcomingOccurrences } from '@/hooks/useSchedules';
+import { useSchedules, useUpcomingOccurrences } from '@/hooks/useSchedules';
 import { he } from '@/locales/he';
 import { scheduleService } from '@/services/scheduleService';
 import type { Schedule, ScheduledOccurrence } from '@/types/schedule.types';
@@ -159,7 +157,6 @@ const CalendarHeader = ({ currentMonth, onMonthChange, disabled }: PickersCalend
 export const ScheduledAutomations = () => {
   const { classes, cx } = useStyles();
   const applications = useAtomValue(applicationsAtom);
-  const runtimeByRunId = useAtomValue(runtimeByRunIdAtom);
   const pushToast = useSetAtom(pushToastAtom);
   const confirm = useConfirm();
 
@@ -168,7 +165,6 @@ export const ScheduledAutomations = () => {
     isLoading: upcomingLoading,
     reload: reloadUpcoming,
   } = useUpcomingOccurrences(UPCOMING_WINDOW_HOURS);
-  const { data: recent, isLoading: recentLoading } = useRecentScheduledRuns(8);
   const { data: schedules, isLoading: schedulesLoading } = useSchedules();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -176,7 +172,6 @@ export const ScheduledAutomations = () => {
   const [editMode, setEditMode] = useState(false);
 
   const occurrences = upcoming ?? [];
-  const groups = recent ?? [];
 
   // Active schedules bucketed by cadence, so "every 2 hours" and "every 4
   // hours" each list their systems once rather than once per system.
@@ -241,6 +236,25 @@ export const ScheduledAutomations = () => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  };
+
+  const isGroupSelected = (group: { items: ScheduledOccurrence[] }) => {
+    const selectable = group.items.filter((occurrence) => !occurrence.skipped);
+    return selectable.length > 0 && selectable.every((occurrence) => selected.has(occurrenceKey(occurrence)));
+  };
+
+  const toggleGroupSelected = (group: { items: ScheduledOccurrence[] }) => {
+    const selectable = group.items.filter((occurrence) => !occurrence.skipped);
+    const allSelected = isGroupSelected(group);
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const occurrence of selectable) {
+        const key = occurrenceKey(occurrence);
+        if (allSelected) next.delete(key);
+        else next.add(key);
+      }
       return next;
     });
   };
@@ -363,73 +377,42 @@ export const ScheduledAutomations = () => {
 
       <section className={classes.card}>
         <div className={classes.cardHeader}>
-          <div className={classes.title}>{he.schedule.recentTitle}</div>
-        </div>
-
-        {!recentLoading && groups.length === 0 ? (
-          <EmptyState icon={<UpdateOutlined fontSize="inherit" />} title={he.schedule.noRecent} />
-        ) : (
-          <div className={classes.groupList}>
-            {groups.map((group) => (
-              <div key={group.occurrenceAt} className={classes.group}>
-                <span className={cx(classes.groupTime, 'num')}>
-                  {formatTime(group.occurrenceAt)}
-                </span>
-                <div className={classes.groupEntries}>
-                  {group.entries.map((entry) => (
-                    <span key={entry.runId} className={classes.entry}>
-                      <IdentityDot color={resolveScopeColor(applications, entry.applicationId)} />
-                      {entry.applicationName}
-                      <StatusBadge status={runtimeByRunId[entry.runId] ?? entry.status} />
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className={classes.card}>
-        <div className={classes.cardHeader}>
           <div className={classes.title}>{he.schedule.next24hTitle}</div>
           <div className={classes.spacer} />
 
+          {editMode && selectedOccurrences.length > 0 && (
+            <Button
+              variant="ghost"
+              size="small"
+              onClick={() => setSelected(new Set())}
+              data-testid="clear-selection-button"
+            >
+              <CloseRounded sx={{ fontSize: 15 }} />
+              {he.schedule.clearSelection}
+            </Button>
+          )}
+
+          {editMode && selectedOccurrences.length > 0 && (
+            <Button
+              variant="danger"
+              size="small"
+              onClick={() => void handleDeleteSelected()}
+              data-testid="delete-selected-button"
+            >
+              <DeleteOutlineRounded sx={{ fontSize: 15 }} />
+              {he.schedule.deleteSelected}
+            </Button>
+          )}
+
+          <Button variant="tint" size="small" onClick={() => setAddOpen(true)} data-testid="add-run-button">
+            <AddRounded sx={{ fontSize: 16 }} />
+            {he.schedule.addRun}
+          </Button>
+
           {editMode ? (
-            <>
-              {selectedOccurrences.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="small"
-                  onClick={() => setSelected(new Set())}
-                  data-testid="clear-selection-button"
-                >
-                  <CloseRounded sx={{ fontSize: 15 }} />
-                  {he.schedule.clearSelection}
-                </Button>
-              )}
-
-              {selectedOccurrences.length > 0 && (
-                <Button
-                  variant="danger"
-                  size="small"
-                  onClick={() => void handleDeleteSelected()}
-                  data-testid="delete-selected-button"
-                >
-                  <DeleteOutlineRounded sx={{ fontSize: 15 }} />
-                  {he.schedule.deleteSelected}
-                </Button>
-              )}
-
-              <Button variant="tint" size="small" onClick={() => setAddOpen(true)} data-testid="add-run-button">
-                <AddRounded sx={{ fontSize: 16 }} />
-                {he.schedule.addRun}
-              </Button>
-
-              <Button variant="ghost" size="small" onClick={handleExitEdit} data-testid="done-editing-button">
-                {he.schedule.doneEditing}
-              </Button>
-            </>
+            <Button variant="ghost" size="small" onClick={handleExitEdit} data-testid="done-editing-button">
+              {he.schedule.doneEditing}
+            </Button>
           ) : (
             <Button variant="ghost" size="small" onClick={() => setEditMode(true)} data-testid="edit-button">
               <EditRounded sx={{ fontSize: 15 }} />
@@ -444,6 +427,16 @@ export const ScheduledAutomations = () => {
           <div className={classes.groupList}>
             {occurrenceGroups.map((group) => (
               <div key={group.occurrenceAt} className={classes.group}>
+                {editMode && group.items.some((occurrence) => !occurrence.skipped) && (
+                  <input
+                    type="checkbox"
+                    checked={isGroupSelected(group)}
+                    onChange={() => toggleGroupSelected(group)}
+                    aria-label={he.schedule.selectGroup(formatTime(group.occurrenceAt))}
+                    data-testid="select-group-checkbox"
+                  />
+                )}
+
                 <span className={cx(classes.groupTime, 'num')}>
                   {formatTime(group.occurrenceAt)}
                 </span>

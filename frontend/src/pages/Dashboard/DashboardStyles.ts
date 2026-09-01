@@ -199,6 +199,7 @@ export const useStyles = makeStyles()(() => ({
   donutWrap: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'center',
     height: '100%',
     gap: 10,
   },
@@ -222,8 +223,9 @@ export const useStyles = makeStyles()(() => ({
     letterSpacing: '-.03em',
   },
   legend: {
-    flex: 1,
+    flex: '0 1 220px',
     display: 'flex',
+    justifyContent: 'space-between',
     flexDirection: 'column',
     gap: 8,
     paddingBottom: 8,

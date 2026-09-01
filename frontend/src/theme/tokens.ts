@@ -54,7 +54,7 @@ export const tokens = {
   font: {
     family:
       '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Assistant, Heebo, "Arial Hebrew", "Segoe UI", system-ui, sans-serif',
-    size: { xs: 11.5, sm: 12.5, base: 13, md: 14.5, lg: 17, xl: 29 },
+    size: { xs: 11.5, sm: 12.5, base: 13, md: 14.5, lg: 17, xl: 23 },
     weight: { regular: 450, medium: 550, semibold: 620, bold: 660 },
   },
 
