@@ -472,6 +472,12 @@ class Schedule:
         timezone: IANA zone the rule is defined against.
         is_active: Whether the schedule fires at all.
         application_name: Owning application's name, joined for display.
+        pending_every_hours: A frequency edit waiting to take effect, or None.
+            Set together with ``pending_effective_after`` — see
+            :func:`utils.schedule_time.occurrences_for_schedule`.
+        pending_effective_after: The occurrence, produced by the *current*
+            cadence, after which ``pending_every_hours`` takes over. None
+            when there is no pending change.
     """
 
     id: UUID
@@ -481,6 +487,8 @@ class Schedule:
     timezone: str
     is_active: bool
     application_name: str | None = None
+    pending_every_hours: int | None = None
+    pending_effective_after: datetime | None = None
 
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> "Schedule":
@@ -503,6 +511,8 @@ class Schedule:
             timezone=row["timezone"],
             is_active=row.get("is_active", True),
             application_name=row.get("application_name"),
+            pending_every_hours=row.get("pending_every_hours"),
+            pending_effective_after=row.get("pending_effective_after"),
         )
 
 

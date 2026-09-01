@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import {
@@ -35,7 +35,7 @@ import { useRunList, useTestDefinitions } from '@/hooks/useRuns';
 import { useSchedules, useUpcomingOccurrences } from '@/hooks/useSchedules';
 import { he } from '@/locales/he';
 import { scheduleService } from '@/services/scheduleService';
-import type { ScheduledOccurrence } from '@/types/schedule.types';
+import type { Schedule, ScheduledOccurrence } from '@/types/schedule.types';
 import type { TestRun } from '@/types/run.types';
 import { formatTime } from '@/utils/format';
 import { resolveScopeColor } from '@/utils/scope';
@@ -46,6 +46,11 @@ const UPCOMING_WINDOW_HOURS = 24;
  * more than the number of active systems, so a run further back never hides
  * a more recent one that happens to sort after it in the page. */
 const RECENT_RUNS_LIMIT = 200;
+
+/** Whole-hour cadences the schedule table itself accepts — every positive
+ * divisor of a day, matching the `schedules_every_hours_divides_day`
+ * database constraint. */
+const FREQUENCY_OPTIONS = [1, 2, 3, 4, 6, 8, 12, 24];
 
 const minutesUntil = (occurrenceAt: string): number =>
   Math.round((new Date(occurrenceAt).getTime() - Date.now()) / 60_000);
@@ -175,7 +180,11 @@ export const ScheduledAutomations = () => {
     isLoading: upcomingLoading,
     reload: reloadUpcoming,
   } = useUpcomingOccurrences(UPCOMING_WINDOW_HOURS);
-  const { data: schedules, isLoading: schedulesLoading } = useSchedules();
+  const {
+    data: schedules,
+    isLoading: schedulesLoading,
+    reload: reloadSchedules,
+  } = useSchedules();
   const { data: applicationDefinitions } = useTestDefinitions(null);
   const { data: recentRuns } = useRunList({
     sort: 'started_at',
@@ -187,6 +196,7 @@ export const ScheduledAutomations = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
 
   const occurrences = upcoming ?? [];
 
@@ -358,6 +368,13 @@ export const ScheduledAutomations = () => {
     pushToast({ message: he.schedule.addRunSuccess, severity: 'success' });
   };
 
+  const handleFrequencyUpdated = () => {
+    setEditingSchedule(null);
+    reloadSchedules();
+    reloadUpcoming();
+    pushToast({ message: he.schedule.editFrequencySuccess, severity: 'success' });
+  };
+
   const handleExitEdit = () => {
     setEditMode(false);
     setSelected(new Set());
@@ -374,6 +391,15 @@ export const ScheduledAutomations = () => {
               <div className={classes.panelHeading} />
               {systemRows.map(({ schedule }) => (
                 <div key={schedule.id} className={classes.nameRow}>
+                  <IconButton
+                    size="small"
+                    className={classes.nameEditButton}
+                    aria-label={he.schedule.editFrequency(schedule.applicationName ?? '')}
+                    onClick={() => setEditingSchedule(schedule)}
+                    data-testid="edit-frequency-button"
+                  >
+                    <EditRounded fontSize="inherit" />
+                  </IconButton>
                   <IdentityDot color={resolveScopeColor(applications, schedule.applicationId)} />
                   <span className={classes.nameText}>{schedule.applicationName}</span>
                 </div>
@@ -401,7 +427,7 @@ export const ScheduledAutomations = () => {
                 <div key={schedule.id} className={classes.panelRow}>
                   {nextOccurrence ? (
                     <>
-                      <span className={cx(classes.panelRowValue, 'num')}>
+                      <span className={cx(classes.panelRowValue, classes.panelRowValueTime, 'num')}>
                         {formatTime(nextOccurrence.occurrenceAt)}
                       </span>
                       <span className={classes.panelRowMuted}>
@@ -424,7 +450,9 @@ export const ScheduledAutomations = () => {
                 <div key={schedule.id} className={classes.panelRow}>
                   {lastRun ? (
                     <>
-                      <span className={cx(classes.panelRowValue, 'num')}>{formatTime(lastRun.startedAt)}</span>
+                      <span className={cx(classes.panelRowValue, classes.panelRowValueTime, 'num')}>
+                        {formatTime(lastRun.startedAt)}
+                      </span>
                       <span className={classes.panelRowTag}>
                         {lastRun.triggerSource === 'manual'
                           ? he.schedule.lastRunManual
@@ -565,6 +593,12 @@ export const ScheduledAutomations = () => {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onCreated={handleAdded}
+      />
+
+      <EditFrequencyDialog
+        schedule={editingSchedule}
+        onClose={() => setEditingSchedule(null)}
+        onUpdated={handleFrequencyUpdated}
       />
     </div>
   );
@@ -714,6 +748,84 @@ const AddScheduledRunDialog = ({
           data-testid="add-run-submit"
         >
           {he.schedule.addRunSubmit}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+const EditFrequencyDialog = ({
+  schedule,
+  onClose,
+  onUpdated,
+}: {
+  schedule: Schedule | null;
+  onClose: () => void;
+  onUpdated: () => void;
+}) => {
+  const { classes } = useStyles();
+  const pushToast = useSetAtom(pushToastAtom);
+
+  const [everyHours, setEveryHours] = useState(schedule?.everyHours ?? 1);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Reset to the schedule's current value each time a different (or no)
+  // schedule is opened, rather than carrying over the previous edit's pick.
+  useEffect(() => {
+    if (schedule) setEveryHours(schedule.everyHours);
+  }, [schedule]);
+
+  const handleClose = () => {
+    if (submitting) return;
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    if (!schedule) return;
+
+    setSubmitting(true);
+    try {
+      await scheduleService.updateFrequency(schedule.id, everyHours);
+      onUpdated();
+    } catch {
+      pushToast({ message: he.errors.generic, severity: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={schedule !== null} onClose={handleClose} data-testid="edit-frequency-dialog">
+      <DialogTitle>{he.schedule.editFrequencyTitle}</DialogTitle>
+      <DialogContent>
+        <TextField
+          select
+          fullWidth
+          className={classes.dialogField}
+          label={he.schedule.editFrequencyField}
+          value={everyHours}
+          onChange={(event) => setEveryHours(Number(event.target.value))}
+          data-testid="edit-frequency-select"
+        >
+          {FREQUENCY_OPTIONS.map((hours) => (
+            <MenuItem key={hours} value={hours}>
+              {he.schedule.everyHours(hours)}
+            </MenuItem>
+          ))}
+        </TextField>
+        <p className={classes.editFrequencyNote}>{he.schedule.editFrequencyNote}</p>
+      </DialogContent>
+      <DialogActions>
+        <Button variant="ghost" onClick={handleClose}>
+          {he.actions.cancel}
+        </Button>
+        <Button
+          variant="primary"
+          disabled={submitting || everyHours === schedule?.everyHours}
+          onClick={() => void handleSubmit()}
+          data-testid="edit-frequency-submit"
+        >
+          {he.schedule.editFrequencySubmit}
         </Button>
       </DialogActions>
     </Dialog>

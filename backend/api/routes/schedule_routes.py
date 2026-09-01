@@ -20,6 +20,7 @@ from services.schedule_service import ScheduleService
 from utils.validators import (
     require_uuid,
     validate_extra_run_body,
+    validate_frequency_body,
     validate_occurrence_body,
     validate_recent_query,
     validate_upcoming_query,
@@ -81,6 +82,28 @@ def list_recent() -> Response:
     params = validate_recent_query(request.args)
     groups = _service().list_recent(**params)
     return jsonify([serialize_run_group(group) for group in groups])
+
+
+@schedule_bp.patch("/schedules/<schedule_id>/frequency")
+def update_frequency(schedule_id: str) -> Response:
+    """Change a schedule's cadence, without touching its committed next run.
+
+    The old cadence keeps producing whichever occurrence is already next;
+    the new one only starts counting occurrences after that instant.
+
+    Args:
+        schedule_id: Path parameter identifying the schedule.
+
+    Returns:
+        HTTP 200 with the updated schedule.
+
+    Raises:
+        ValidationError: If the identifier or body is malformed.
+        NotFoundError: If no such schedule exists.
+    """
+    payload = validate_frequency_body(json_body())
+    schedule = _service().update_frequency(require_uuid(schedule_id, "scheduleId"), **payload)
+    return jsonify(serialize_schedule(schedule))
 
 
 @schedule_bp.post("/schedules/<schedule_id>/skip")

@@ -629,6 +629,33 @@ def validate_extra_run_body(body: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_frequency_body(body: Mapping[str, Any]) -> dict[str, int]:
+    """Validate the body for changing a schedule's frequency.
+
+    Args:
+        body: JSON body with ``everyHours``.
+
+    Returns:
+        Keyword arguments for the schedule service.
+
+    Raises:
+        ValidationError: If ``everyHours`` is missing, or is not one of the
+            whole-hour cadences the schedule table itself accepts (a positive
+            divisor of 24 — matches the ``schedules_every_hours_divides_day``
+            database constraint).
+    """
+    value = body.get("everyHours")
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value <= 0
+        or value > 24
+        or 24 % value != 0
+    ):
+        _fail("everyHours", "התדירות חייבת להיות מספר שלם של שעות המתחלק ב-24")
+    return {"every_hours": value}
+
+
 def validate_application_body(body: Mapping[str, Any]) -> dict[str, Any]:
     """Validate the body for creating an application.
 

@@ -137,6 +137,97 @@ def test_ordinary_day_produces_evenly_spaced_occurrences() -> None:
     assert gaps == {timedelta(hours=2)}
 
 
+def test_pending_change_keeps_the_pivot_occurrence_then_switches_cadence() -> None:
+    """Worked example: a 2-hour schedule changes to a 3-hour one. The
+    occurrence that was already next (the pivot) fires unchanged, and only
+    occurrences after it follow the new cadence."""
+    pivot = datetime(2026, 6, 1, 19, 0, tzinfo=UTC)  # 22:00 Asia/Jerusalem (IDT, UTC+3)
+    start = pivot - timedelta(hours=1)  # 21:00 local, after the run that already happened at 20:00
+    end = pivot + timedelta(hours=7)  # room for two 3-hour steps past the pivot
+
+    occurrences = occurrences_between(
+        every_hours=2,
+        anchor_minute=0,
+        timezone=JERUSALEM,
+        start_utc=start,
+        end_utc=end,
+        pending_every_hours=3,
+        pending_effective_after=pivot,
+    )
+
+    assert occurrences == [
+        pivot,  # 22:00 — produced by the old 2-hour cadence, untouched
+        pivot + timedelta(hours=3),  # 01:00 — new 3-hour cadence counts from the pivot
+        pivot + timedelta(hours=6),  # 04:00
+    ]
+    # The old cadence's 00:00/02:00 slots (pivot + 2h/4h) must not appear —
+    # the new cadence fully replaces it after the pivot.
+    assert pivot + timedelta(hours=2) not in occurrences
+    assert pivot + timedelta(hours=4) not in occurrences
+
+
+def test_pending_change_produces_nothing_before_the_pivot_is_reached() -> None:
+    """Querying a window that ends before the pivot only sees the old grid,
+    same as if no change were pending at all."""
+    pivot = datetime(2026, 6, 1, 19, 0, tzinfo=UTC)
+    start = pivot - timedelta(hours=3)
+    end = pivot - timedelta(hours=1)
+
+    with_pending = occurrences_between(
+        every_hours=2,
+        anchor_minute=0,
+        timezone=JERUSALEM,
+        start_utc=start,
+        end_utc=end,
+        pending_every_hours=3,
+        pending_effective_after=pivot,
+    )
+    without_pending = occurrences_between(
+        every_hours=2, anchor_minute=0, timezone=JERUSALEM, start_utc=start, end_utc=end
+    )
+
+    assert with_pending == without_pending
+
+
+def test_pending_change_far_in_the_past_still_computes_a_far_future_window() -> None:
+    """Once the pivot itself is long gone, the new cadence alone must still
+    describe the grid correctly — no reliance on iterating from the pivot."""
+    pivot = datetime(2026, 1, 1, tzinfo=UTC)
+    start = datetime(2026, 6, 1, tzinfo=UTC)
+    end = start + timedelta(hours=6)
+
+    occurrences = occurrences_between(
+        every_hours=2,
+        anchor_minute=0,
+        timezone=JERUSALEM,
+        start_utc=start,
+        end_utc=end,
+        pending_every_hours=4,
+        pending_effective_after=pivot,
+    )
+
+    assert len(occurrences) == 2
+    assert (occurrences[0] - pivot) % timedelta(hours=4) == timedelta(0)
+    gaps = {b - a for a, b in zip(occurrences, occurrences[1:])}
+    assert gaps == {timedelta(hours=4)}
+
+
+def test_next_occurrence_with_pending_change_returns_the_pivot() -> None:
+    pivot = datetime(2026, 6, 1, 19, 0, tzinfo=UTC)
+    after = pivot - timedelta(hours=1, minutes=30)  # 20:30 local, mirrors the worked example
+
+    result = next_occurrence(
+        every_hours=2,
+        anchor_minute=0,
+        timezone=JERUSALEM,
+        after_utc=after,
+        pending_every_hours=3,
+        pending_effective_after=pivot,
+    )
+
+    assert result == pivot
+
+
 def test_every_hours_must_be_positive() -> None:
     with pytest.raises(ValueError):
         occurrences_between(

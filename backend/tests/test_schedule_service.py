@@ -7,12 +7,16 @@ enqueued, which are skipped, and what idempotency key each is given.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
+
 from database.models import Schedule, ScheduleExtraRun, ScheduleSkip, TestDefinition
 from services.schedule_service import ScheduleService
+from utils.errors import NotFoundError
 from utils.schedule_time import build_idempotency_key
 
 
@@ -193,3 +197,113 @@ def test_tick_skips_a_schedule_whose_application_has_no_active_main_test() -> No
 
     assert result == {"enqueued": 0}
     ctx["run_service"].start_run.assert_not_called()
+
+
+class TestUpdateFrequency:
+    """`update_frequency` must pivot on whatever occurrence is already next,
+    never rewrite it, and stay correct across repeated edits."""
+
+    def _schedule(self, **overrides) -> Schedule:
+        return Schedule(
+            id=uuid4(),
+            application_id=uuid4(),
+            every_hours=2,
+            anchor_minute=0,
+            timezone="Asia/Jerusalem",
+            is_active=True,
+            application_name="מגן עליון",
+            **overrides,
+        )
+
+    def _service(self, schedule: Schedule) -> tuple[ScheduleService, MagicMock]:
+        schedules_repo = MagicMock()
+        schedules_repo.find_by_id.return_value = schedule
+        schedules_repo.update_frequency.side_effect = (
+            lambda schedule_id, *, every_hours, pending_every_hours, pending_effective_after: replace(
+                schedule,
+                every_hours=every_hours,
+                pending_every_hours=pending_every_hours,
+                pending_effective_after=pending_effective_after,
+            )
+        )
+        service = ScheduleService(
+            schedule_repository=schedules_repo,
+            definition_repository=MagicMock(),
+            application_repository=MagicMock(),
+            run_service=MagicMock(),
+        )
+        return service, schedules_repo
+
+    def test_pivots_on_the_next_occurrence_under_the_current_cadence(self) -> None:
+        # 20:30 Asia/Jerusalem, mirroring the worked example: already ran at
+        # 20:00, next due at 22:00.
+        now = datetime(2026, 6, 1, 17, 30, 0, tzinfo=UTC)
+        schedule = self._schedule()
+        service, schedules_repo = self._service(schedule)
+
+        updated = service.update_frequency(schedule.id, every_hours=1, now=now)
+
+        expected_pivot = datetime(2026, 6, 1, 19, 0, 0, tzinfo=UTC)  # 22:00 local
+        schedules_repo.update_frequency.assert_called_once_with(
+            schedule.id,
+            every_hours=2,  # the original cadence — its pivot has not fired yet
+            pending_every_hours=1,
+            pending_effective_after=expected_pivot,
+        )
+        assert updated.pending_every_hours == 1
+        assert updated.pending_effective_after == expected_pivot
+        # The old cadence's own next occurrence is exactly the pivot — it is
+        # not skipped, moved, or duplicated.
+
+    def test_editing_again_before_the_pivot_fires_keeps_the_same_pivot(self) -> None:
+        """A second edit, made before the first pivot has happened, is still
+        judged against the untouched base cadence — so it lands on the same
+        pivot, just aimed at a different target frequency."""
+        now = datetime(2026, 6, 1, 17, 30, 0, tzinfo=UTC)  # 20:30 local
+        first_pivot = datetime(2026, 6, 1, 19, 0, 0, tzinfo=UTC)  # 22:00 local
+        schedule = self._schedule(pending_every_hours=1, pending_effective_after=first_pivot)
+        service, schedules_repo = self._service(schedule)
+
+        service.update_frequency(schedule.id, every_hours=6, now=now)
+
+        schedules_repo.update_frequency.assert_called_once_with(
+            schedule.id,
+            every_hours=2,  # the base cadence — the first pending change never went live
+            pending_every_hours=6,
+            pending_effective_after=first_pivot,
+        )
+
+    def test_editing_again_after_the_pivot_fired_pivots_on_the_new_cadence(self) -> None:
+        """Once the first pivot is in the past, the schedule is already
+        running on its (formerly pending) cadence — a further edit must
+        pivot against *that*, not the original base cadence."""
+        first_pivot = datetime(2026, 6, 1, 19, 0, 0, tzinfo=UTC)  # 22:00 local
+        # Now sits after the first pivot, on the 3-hour cadence it introduced.
+        now = datetime(2026, 6, 1, 20, 0, 0, tzinfo=UTC)  # 23:00 local — 1h after the first pivot
+        schedule = self._schedule(pending_every_hours=3, pending_effective_after=first_pivot)
+        service, schedules_repo = self._service(schedule)
+
+        service.update_frequency(schedule.id, every_hours=1, now=now)
+
+        # Next occurrence of the (pending-turned-live) 3-hour cadence after
+        # 23:00 local, counting from the 22:00 pivot, is 01:00 local next day.
+        expected_pivot = datetime(2026, 6, 1, 22, 0, 0, tzinfo=UTC)
+        schedules_repo.update_frequency.assert_called_once_with(
+            schedule.id,
+            every_hours=3,  # the formerly-pending cadence, now live, gets committed
+            pending_every_hours=1,
+            pending_effective_after=expected_pivot,
+        )
+
+    def test_raises_not_found_for_an_unknown_schedule(self) -> None:
+        schedules_repo = MagicMock()
+        schedules_repo.find_by_id.return_value = None
+        service = ScheduleService(
+            schedule_repository=schedules_repo,
+            definition_repository=MagicMock(),
+            application_repository=MagicMock(),
+            run_service=MagicMock(),
+        )
+
+        with pytest.raises(NotFoundError):
+            service.update_frequency(uuid4(), every_hours=1)

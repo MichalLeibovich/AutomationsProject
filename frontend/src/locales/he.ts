@@ -1,5 +1,5 @@
-/** Feminine cardinal numbers, as "שעות" takes — 1 and 2 are irregular and
- * handled separately in {@link he.schedule.everyHours}. */
+/** Feminine cardinal numbers, as "דקות"/"שעות" take — 1 and 2 are irregular
+ * and handled separately in {@link he.schedule.timeUntil}. */
 const HOUR_WORDS: Record<number, string> = {
   3: 'שלוש',
   4: 'ארבע',
@@ -171,6 +171,13 @@ export const he = {
     lastRunManual: 'ידנית',
     noValue: '—',
     noSystems: 'לא הוגדרו אוטומציות מתוזמנות פעילות',
+    editFrequency: (system: string): string => `עריכת תדירות עבור ${system}`,
+    editFrequencyTitle: 'עריכת תדירות ההרצה האוטומטית',
+    editFrequencyField: 'תדירות',
+    editFrequencyNote:
+      'הריצה המתוזמנת הקרובה ביותר לא תשתנה — התדירות החדשה תיכנס לתוקף רק אחריה.',
+    editFrequencySubmit: 'שמירה',
+    editFrequencySuccess: 'התדירות עודכנה',
     /** "בעוד X דקות" under an hour; "בעוד X שעות (ו-Y דקות)" from an hour up,
      * so a run a few hours out reads as hours rather than a triple-digit
      * minute count. */
@@ -214,10 +221,9 @@ export const he = {
     deleteSuccess: 'הריצות בוטלו',
     restoreSuccess: 'הריצה שוחזרה',
     everyHours: (hours: number): string => {
-      if (hours === 1) return 'כל שעה';
+      if (hours === 1) return 'כל שעה אחת';
       if (hours === 2) return 'כל שעתיים';
-      const word = HOUR_WORDS[hours];
-      return word ? `כל ${word} שעות` : `כל ${hours} שעות`;
+      return `כל ${hours} שעות`;
     },
     edit: 'עריכה',
     doneEditing: 'סיום עריכה',

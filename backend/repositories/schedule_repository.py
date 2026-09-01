@@ -36,6 +36,42 @@ class ScheduleRepository(BaseRepository):
         row = self.fetch_one(queries.SELECT_SCHEDULE_BY_ID, {"schedule_id": str(schedule_id)})
         return self.map_one(row, Schedule.from_row)
 
+    def update_frequency(
+        self,
+        schedule_id: UUID,
+        *,
+        every_hours: int,
+        pending_every_hours: int,
+        pending_effective_after: datetime,
+    ) -> Schedule | None:
+        """Record a frequency change, pivoting after the given occurrence.
+
+        Args:
+            schedule_id: The schedule to update.
+            every_hours: The cadence actually in effect right now — the
+                caller's job to resolve, since it may itself be a previously
+                pending cadence that has since taken over.
+            pending_every_hours: The new cadence, taking over after the pivot.
+            pending_effective_after: The occurrence, produced by the current
+                cadence, after which the new one takes over.
+
+        Returns:
+            The updated schedule with its application name joined, or None if
+            no such schedule exists.
+        """
+        row = self.execute_returning(
+            queries.UPDATE_SCHEDULE_FREQUENCY,
+            {
+                "schedule_id": str(schedule_id),
+                "every_hours": every_hours,
+                "pending_every_hours": pending_every_hours,
+                "pending_effective_after": pending_effective_after,
+            },
+        )
+        if row is None:
+            return None
+        return self.find_by_id(schedule_id)
+
     # -- skips ------------------------------------------------------------
     def list_skips_in_range(
         self, schedule_ids: list[UUID], *, start: datetime, end: datetime

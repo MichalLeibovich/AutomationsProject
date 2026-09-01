@@ -50,6 +50,25 @@ export const scheduleService = {
   },
 
   /**
+   * Change a recurring schedule's frequency.
+   *
+   * Does not touch the occurrence already committed under the current
+   * cadence — the API pivots the change to take effect only after it.
+   *
+   * @param scheduleId - The schedule to update.
+   * @param everyHours - The new interval between occurrences, in hours.
+   * @returns The updated schedule.
+   * @throws {ApiError} If the schedule does not exist, or `everyHours` is
+   * not a whole-hour divisor of a day.
+   */
+  async updateFrequency(scheduleId: string, everyHours: number): Promise<Schedule> {
+    const { data } = await apiClient.patch<Schedule>(endpoints.schedules.updateFrequency(scheduleId), {
+      everyHours,
+    });
+    return data;
+  },
+
+  /**
    * Cancel one occurrence of a recurring schedule.
    *
    * @param scheduleId - The schedule the occurrence belongs to.

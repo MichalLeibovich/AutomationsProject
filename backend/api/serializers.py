@@ -201,7 +201,11 @@ def serialize_schedule(schedule: Schedule) -> dict[str, Any]:
         "id": str(schedule.id),
         "applicationId": str(schedule.application_id),
         "applicationName": schedule.application_name,
-        "everyHours": schedule.every_hours,
+        # The pending cadence, once set, is what the schedule is "set to" —
+        # the interface should reflect an edit immediately, even though the
+        # occurrence already queued under the old cadence keeps its timing
+        # until it fires.
+        "everyHours": schedule.pending_every_hours or schedule.every_hours,
         "anchorMinute": schedule.anchor_minute,
         "timezone": schedule.timezone,
         "isActive": schedule.is_active,

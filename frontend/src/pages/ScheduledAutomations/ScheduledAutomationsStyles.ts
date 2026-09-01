@@ -50,14 +50,23 @@ export const useStyles = makeStyles()(() => ({
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    minHeight: 48,
+    minHeight: 40,
     fontWeight: tokens.font.weight.semibold,
-    fontSize: tokens.font.size.md,
+    fontSize: tokens.font.size.base,
   },
   nameText: {
+    flex: 1,
+    minWidth: 0,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
+  },
+  nameEditButton: {
+    flexShrink: 0,
+    padding: 4,
+    fontSize: 15,
+    color: tokens.color.ink40,
+    '&:hover': { color: tokens.color.ink },
   },
 
   panel: {
@@ -70,7 +79,7 @@ export const useStyles = makeStyles()(() => ({
     padding: '10px 16px 6px',
   },
   panelHeading: {
-    minHeight: 48,
+    minHeight: 40,
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
@@ -79,12 +88,12 @@ export const useStyles = makeStyles()(() => ({
     marginBottom: 4,
   },
   panelHeadingBig: {
-    fontSize: tokens.font.size.lg,
+    fontSize: tokens.font.size.md,
     fontWeight: tokens.font.weight.semibold,
     lineHeight: 1.2,
   },
   panelHeadingSmall: {
-    fontSize: tokens.font.size.sm,
+    fontSize: tokens.font.size.xs,
     color: tokens.color.ink40,
     fontWeight: tokens.font.weight.medium,
   },
@@ -94,20 +103,27 @@ export const useStyles = makeStyles()(() => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
-    minHeight: 48,
+    minHeight: 40,
     textAlign: 'center',
   },
   panelRowValue: {
-    fontSize: tokens.font.size.md,
+    fontSize: tokens.font.size.base,
     fontWeight: tokens.font.weight.semibold,
     color: tokens.color.ink,
   },
+  /** The next/last-run clock values are `panelRowValue` at an identical px
+   * size to the system names and frequency values, but tabular digits read
+   * visually smaller than Hebrew letters at the same size — this nudges
+   * them up so all three read as one size again. */
+  panelRowValueTime: {
+    fontSize: 14.5,
+  },
   panelRowMuted: {
-    fontSize: tokens.font.size.sm,
+    fontSize: tokens.font.size.xs,
     color: tokens.color.ink40,
   },
   panelRowTag: {
-    fontSize: tokens.font.size.sm,
+    fontSize: tokens.font.size.xs,
     color: tokens.color.ink40,
     fontWeight: tokens.font.weight.medium,
   },
@@ -117,7 +133,7 @@ export const useStyles = makeStyles()(() => ({
     flexDirection: 'column',
     overflowY: "auto",
     gap: 10,
-    height: "300px",
+    height: "250px",
     direction: "rtl",
 
     // Scrollbar
@@ -175,6 +191,12 @@ export const useStyles = makeStyles()(() => ({
   },
 
   dialogField: { marginTop: 10, width: '100%' },
+  editFrequencyNote: {
+    margin: '10px 0 0',
+    fontSize: tokens.font.size.xs,
+    color: tokens.color.ink40,
+    lineHeight: 1.5,
+  },
 
   dateTimeRow: {
     display: 'flex',

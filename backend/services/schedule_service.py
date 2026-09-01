@@ -130,6 +130,8 @@ class ScheduleService:
                 timezone=schedule.timezone,
                 start_utc=now,
                 end_utc=end,
+                pending_every_hours=schedule.pending_every_hours,
+                pending_effective_after=schedule.pending_effective_after,
             )
             for occurrence in occurrences:
                 results.append(
@@ -197,6 +199,83 @@ class ScheduleService:
 
         ordered = sorted(grouped.keys(), reverse=True)[:limit]
         return [ScheduledRunGroup(occurrence=occurrence, entries=grouped[occurrence]) for occurrence in ordered]
+
+    # -- frequency ----------------------------------------------------------
+    def update_frequency(
+        self, schedule_id: UUID, *, every_hours: int, now: datetime | None = None
+    ) -> Schedule:
+        """Change a schedule's cadence, without touching its committed next run.
+
+        The new cadence never applies retroactively: whichever occurrence is
+        already next right now — under whatever cadence currently governs,
+        possibly itself a still-pending change from an earlier edit — keeps
+        being produced as-is, and `every_hours` only starts counting
+        occurrences after that instant. See
+        :func:`utils.schedule_time.occurrences_between` for the mechanics
+        this relies on.
+
+        Args:
+            schedule_id: The schedule to update.
+            every_hours: The new interval between occurrences, in hours.
+            now: The instant to pivot against. Defaults to the current time;
+                overridable for tests.
+
+        Returns:
+            The updated schedule.
+
+        Raises:
+            NotFoundError: If no such schedule exists.
+            ValidationError: If no occurrence to pivot on was found — should
+                not happen in practice, since every valid cadence fires at
+                least once a day.
+        """
+        schedule = self._get_schedule(schedule_id)
+        now = now or datetime.now(UTC)
+
+        pivot = schedule_time.next_occurrence(
+            every_hours=schedule.every_hours,
+            anchor_minute=schedule.anchor_minute,
+            timezone=schedule.timezone,
+            after_utc=now,
+            horizon_hours=48,
+            pending_every_hours=schedule.pending_every_hours,
+            pending_effective_after=schedule.pending_effective_after,
+        )
+        if pivot is None:
+            raise ValidationError(
+                details={"everyHours": ["לא נמצאה ריצה עתידית לתזמן את השינוי אחריה"]}
+            )
+
+        # `occurrences_between` only ever composes one committed cadence with
+        # one pending one. If an earlier pending change has already taken
+        # over (its pivot is behind us), that cadence — not the original
+        # `every_hours` — is what is actually live right now, and it is what
+        # must be committed here: otherwise it is lost the moment this edit
+        # overwrites the pending pair, and every read between now and the new
+        # pivot would silently fall back to the stale original cadence.
+        current_every_hours = (
+            schedule.pending_every_hours
+            if schedule.pending_effective_after is not None and schedule.pending_effective_after <= now
+            else schedule.every_hours
+        )
+
+        updated = self._schedules.update_frequency(
+            schedule_id,
+            every_hours=current_every_hours,
+            pending_every_hours=every_hours,
+            pending_effective_after=pivot,
+        )
+        assert updated is not None, "schedule existed a moment ago"
+
+        logger.info(
+            "schedule frequency changed",
+            extra={
+                "schedule_id": str(schedule_id),
+                "every_hours": every_hours,
+                "effective_after": pivot.isoformat(),
+            },
+        )
+        return updated
 
     # -- skip / restore ---------------------------------------------------
     def skip(self, schedule_id: UUID, occurrence: datetime) -> None:
@@ -334,6 +413,8 @@ class ScheduleService:
                 timezone=schedule.timezone,
                 start_utc=window_start,
                 end_utc=window_end,
+                pending_every_hours=schedule.pending_every_hours,
+                pending_effective_after=schedule.pending_effective_after,
             )
             if not occurrences:
                 continue

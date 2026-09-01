@@ -392,10 +392,50 @@ CREATE TABLE IF NOT EXISTS noc.schedules (
   is_active      boolean NOT NULL DEFAULT true,
   created_at     timestamptz NOT NULL DEFAULT now(),
 
+  -- A frequency edit does not touch `every_hours` directly — it would
+  -- retroactively regenerate every future occurrence from local midnight,
+  -- silently moving or deleting whatever is already the schedule's next
+  -- run. Instead it lands here: the old cadence keeps producing occurrences
+  -- through `pending_effective_after` (the occurrence that was already next
+  -- at edit time), and `pending_every_hours` takes over counting forward
+  -- from that instant onward. See utils/schedule_time.occurrences_for_schedule.
+  pending_every_hours     smallint,
+  pending_effective_after timestamptz,
+
   CONSTRAINT schedules_every_hours_positive CHECK (every_hours > 0 AND every_hours <= 24),
   CONSTRAINT schedules_every_hours_divides_day CHECK (24 % every_hours = 0),
-  CONSTRAINT schedules_anchor_minute_range CHECK (anchor_minute BETWEEN 0 AND 59)
+  CONSTRAINT schedules_anchor_minute_range CHECK (anchor_minute BETWEEN 0 AND 59),
+  CONSTRAINT schedules_pending_every_hours_positive
+    CHECK (pending_every_hours IS NULL OR (pending_every_hours > 0 AND pending_every_hours <= 24)),
+  CONSTRAINT schedules_pending_every_hours_divides_day
+    CHECK (pending_every_hours IS NULL OR 24 % pending_every_hours = 0),
+  CONSTRAINT schedules_pending_fields_together
+    CHECK ((pending_every_hours IS NULL) = (pending_effective_after IS NULL))
 );
+
+-- ---------------------------------------------------------------------------
+-- Upgrade path for databases created before frequency editing
+--
+-- CREATE TABLE IF NOT EXISTS does nothing to an existing table, so an installed
+-- database needs these explicitly. No-op on a fresh one, which already has
+-- the columns and constraints from the CREATE TABLE above.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'noc' AND table_name = 'schedules' AND column_name = 'pending_every_hours'
+  ) THEN
+    ALTER TABLE noc.schedules ADD COLUMN pending_every_hours smallint;
+    ALTER TABLE noc.schedules ADD COLUMN pending_effective_after timestamptz;
+    ALTER TABLE noc.schedules ADD CONSTRAINT schedules_pending_every_hours_positive
+      CHECK (pending_every_hours IS NULL OR (pending_every_hours > 0 AND pending_every_hours <= 24));
+    ALTER TABLE noc.schedules ADD CONSTRAINT schedules_pending_every_hours_divides_day
+      CHECK (pending_every_hours IS NULL OR 24 % pending_every_hours = 0);
+    ALTER TABLE noc.schedules ADD CONSTRAINT schedules_pending_fields_together
+      CHECK ((pending_every_hours IS NULL) = (pending_effective_after IS NULL));
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- Schedule skips — one cancelled recurring occurrence

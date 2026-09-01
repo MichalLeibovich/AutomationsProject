@@ -15,6 +15,7 @@ with no extra column on ``test_runs``.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -27,7 +28,7 @@ EXTRA_PREFIX = "extra"
 one-off :class:`~database.models.ScheduleExtraRun`."""
 
 
-def occurrences_between(
+def _fixed_occurrences_between(
     *,
     every_hours: int,
     anchor_minute: int,
@@ -35,7 +36,7 @@ def occurrences_between(
     start_utc: datetime,
     end_utc: datetime,
 ) -> list[datetime]:
-    """List every occurrence of a recurring rule in ``[start_utc, end_utc)``.
+    """List every occurrence of a fixed-cadence rule in ``[start_utc, end_utc)``.
 
     Occurrences are defined on the *local* wall clock in ``timezone`` — every
     ``every_hours`` hours starting from local midnight, at ``anchor_minute``
@@ -65,16 +66,7 @@ def occurrences_between(
     Returns:
         Occurrence instants as timezone-aware UTC datetimes, ascending. Empty
         if the range contains none.
-
-    Raises:
-        ValueError: If ``every_hours`` is not positive, or ``end_utc`` is not
-            after ``start_utc``.
     """
-    if every_hours <= 0:
-        raise ValueError("every_hours must be positive")
-    if end_utc <= start_utc:
-        raise ValueError("end_utc must be after start_utc")
-
     tz = ZoneInfo(timezone)
     step = timedelta(hours=every_hours)
 
@@ -114,8 +106,115 @@ def occurrences_between(
     return results
 
 
+def occurrences_between(
+    *,
+    every_hours: int,
+    anchor_minute: int,
+    timezone: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    pending_every_hours: int | None = None,
+    pending_effective_after: datetime | None = None,
+) -> list[datetime]:
+    """List every occurrence of a recurring rule in ``[start_utc, end_utc)``.
+
+    With no pending change, this is a fixed cadence: every ``every_hours``
+    hours starting from local midnight in ``timezone``, at ``anchor_minute``
+    past the hour (see :func:`_fixed_occurrences_between` for the DST-aware
+    mechanics).
+
+    A frequency edit does not retroactively rewrite that grid — doing so
+    could silently move or delete whatever is already the schedule's next
+    run. Instead, when ``pending_every_hours``/``pending_effective_after``
+    are given, the result is a splice of two grids: the current cadence's
+    occurrences up to and including ``pending_effective_after`` (in
+    practice, at most the single occurrence that was already next when the
+    change was made), followed by ``pending_every_hours``-spaced occurrences
+    counting forward from that instant, indefinitely. This composes across
+    repeated edits with no extra bookkeeping: a later call always measures
+    "next occurrence right now" against whichever grid currently applies,
+    old or already-pending, so overwriting the pending pair again is always
+    correct regardless of how many times the frequency has changed before.
+
+    Args:
+        every_hours: Interval between occurrences, in hours. Must be
+            positive.
+        anchor_minute: Minute past each hour the schedule fires on, 0-59.
+        timezone: IANA zone name the rule is defined against, for example
+            ``"Asia/Jerusalem"``.
+        start_utc: Range start, inclusive.
+        end_utc: Range end, exclusive.
+        pending_every_hours: A new cadence waiting to take effect, or None.
+        pending_effective_after: The occurrence after which
+            ``pending_every_hours`` takes over. Required together with
+            ``pending_every_hours``.
+
+    Returns:
+        Occurrence instants as timezone-aware UTC datetimes, ascending. Empty
+        if the range contains none.
+
+    Raises:
+        ValueError: If ``every_hours`` or ``pending_every_hours`` is not
+            positive, or ``end_utc`` is not after ``start_utc``.
+    """
+    if every_hours <= 0:
+        raise ValueError("every_hours must be positive")
+    if end_utc <= start_utc:
+        raise ValueError("end_utc must be after start_utc")
+
+    if pending_every_hours is None or pending_effective_after is None:
+        return _fixed_occurrences_between(
+            every_hours=every_hours,
+            anchor_minute=anchor_minute,
+            timezone=timezone,
+            start_utc=start_utc,
+            end_utc=end_utc,
+        )
+    if pending_every_hours <= 0:
+        raise ValueError("pending_every_hours must be positive")
+
+    pivot = pending_effective_after
+    results: list[datetime] = []
+
+    if start_utc <= pivot:
+        old_occurrences = _fixed_occurrences_between(
+            every_hours=every_hours,
+            anchor_minute=anchor_minute,
+            timezone=timezone,
+            start_utc=start_utc,
+            end_utc=min(end_utc, pivot + timedelta(seconds=1)),
+        )
+        results.extend(occurrence for occurrence in old_occurrences if occurrence <= pivot)
+
+    # Stepping forward from the pivot rather than from local midnight: the
+    # new cadence's grid is anchored to the transition instant itself, not
+    # to any particular time-of-day. Jumping straight to the first candidate
+    # at or after `start_utc` (rather than looping one step at a time from
+    # the pivot) keeps this cheap even when the pivot is long past.
+    step = timedelta(hours=pending_every_hours)
+    if start_utc > pivot:
+        steps_needed = max(1, math.ceil((start_utc - pivot) / step))
+    else:
+        steps_needed = 1
+    cursor = pivot + step * steps_needed
+
+    while cursor < end_utc:
+        results.append(cursor)
+        cursor += step
+
+    results.sort()
+    return results
+
+
 def next_occurrence(
-    *, every_hours: int, anchor_minute: int, timezone: str, after_utc: datetime, horizon_hours: int = 24
+    *,
+    every_hours: int,
+    anchor_minute: int,
+    timezone: str,
+    after_utc: datetime,
+    horizon_hours: int = 24,
+    pending_every_hours: int | None = None,
+    pending_effective_after: datetime | None = None,
 ) -> datetime | None:
     """Find the next occurrence strictly after a given instant.
 
@@ -125,8 +224,12 @@ def next_occurrence(
         timezone: IANA zone name the rule is defined against.
         after_utc: Only occurrences after this instant are considered.
         horizon_hours: How far ahead to search before giving up. Must exceed
-            ``every_hours``, or a schedule could have no occurrence within
-            the search window at all.
+            the larger of ``every_hours`` and ``pending_every_hours``, or a
+            schedule could have no occurrence within the search window at
+            all.
+        pending_every_hours: A new cadence waiting to take effect, or None.
+        pending_effective_after: The occurrence after which
+            ``pending_every_hours`` takes over.
 
     Returns:
         The next occurrence, or None if none falls within ``horizon_hours``.
@@ -138,6 +241,8 @@ def next_occurrence(
         timezone=timezone,
         start_utc=after_utc + timedelta(seconds=1),
         end_utc=window_end,
+        pending_every_hours=pending_every_hours,
+        pending_effective_after=pending_effective_after,
     ):
         return occurrence
     return None

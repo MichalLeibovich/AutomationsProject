@@ -555,7 +555,8 @@ refresh itself.
 # ===========================================================================
 SCHEDULE_PROJECTION = """
     SELECT s.id, s.application_id, s.every_hours, s.anchor_minute, s.timezone,
-           s.is_active, a.name AS application_name
+           s.is_active, s.pending_every_hours, s.pending_effective_after,
+           a.name AS application_name
     FROM noc.schedules s
     JOIN noc.applications a ON a.id = s.application_id
 """
@@ -566,6 +567,22 @@ SELECT_ACTIVE_SCHEDULES = SCHEDULE_PROJECTION + " WHERE s.is_active ORDER BY a.d
 
 SELECT_SCHEDULE_BY_ID = SCHEDULE_PROJECTION + " WHERE s.id = %(schedule_id)s"
 """Load one schedule by primary key."""
+
+UPDATE_SCHEDULE_FREQUENCY = """
+    UPDATE noc.schedules
+       SET every_hours = %(every_hours)s,
+           pending_every_hours = %(pending_every_hours)s,
+           pending_effective_after = %(pending_effective_after)s
+     WHERE id = %(schedule_id)s
+    RETURNING id
+"""
+"""Record a frequency change: `every_hours` is committed to whatever cadence
+is actually live right now (the caller has already resolved this, since it
+may itself be a previously pending cadence that has since taken over), and
+that cadence keeps producing occurrences through `pending_effective_after`,
+after which `pending_every_hours` takes over counting forward. Re-running
+this before the previous pivot fires simply overwrites all three fields with
+the new target."""
 
 SELECT_SKIPS_IN_RANGE = """
     SELECT id, schedule_id, occurrence, created_at, restored_at

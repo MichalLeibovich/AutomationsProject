@@ -56,6 +56,8 @@ export const endpoints = {
     list: '/schedules',
     upcoming: '/schedules/upcoming',
     recent: '/schedules/recent',
+    /** @param scheduleId - The schedule whose frequency to change. */
+    updateFrequency: (scheduleId: string) => `/schedules/${scheduleId}/frequency`,
     /** @param scheduleId - The schedule whose occurrence to cancel. */
     skip: (scheduleId: string) => `/schedules/${scheduleId}/skip`,
     /** @param scheduleId - The schedule whose occurrence to un-cancel. */
