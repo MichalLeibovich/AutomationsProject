@@ -29,56 +29,109 @@ export const useStyles = makeStyles()(() => ({
   spacer: { flex: 1 },
   search: { width: 260 },
 
-  grid: {
-    // display: 'grid',
-    display: 'flex',
-    // gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-    gap: 10,
-    justifyContent: "center",
-    placeItems: "center",
+  overview: {
+    // Deliberately unboxed — the three panels below are the only bordered
+    // shapes in this section, so the "row" reads as alignment, not a table.
   },
-  tile: {
+  overviewRow: {
     display: 'flex',
-    width: "15%",
-    alignItems: 'center',
-    justifyContent: "center",
-    gap: 10,
-    padding: '12px 14px',
-    borderRadius: tokens.radius.control,
-    background: tokens.color.canvas,
+    alignItems: 'stretch',
+    gap: 14,
   },
-  tileText: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
-  tileNameWithDot: {
+  nameColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 140,
+    // Mirrors `panel`'s top/bottom padding so the name column's rows fall at
+    // the exact same y as the panels' rows instead of sitting higher.
+    padding: '10px 6px 6px 0',
+  },
+  nameRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    // minWidth: 0,
+    gap: 8,
+    minHeight: 48,
+    fontWeight: tokens.font.weight.semibold,
+    fontSize: tokens.font.size.md,
   },
-  tileName: {
-    fontWeight: tokens.font.weight.medium,
+  nameText: {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
-  tileTimeWithClock: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
+
+  panel: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: tokens.radius.card,
+    background: tokens.color.surface,
+    border: '1px solid rgba(10,36,78,.05)',
+    boxShadow: tokens.shadow.sm,
+    padding: '10px 16px 6px',
   },
-  tileTime: {
+  panelHeading: {
+    minHeight: 48,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
     textAlign: 'center',
+    marginBottom: 4,
+  },
+  panelHeadingBig: {
     fontSize: tokens.font.size.lg,
     fontWeight: tokens.font.weight.semibold,
+    lineHeight: 1.2,
+  },
+  panelHeadingSmall: {
+    fontSize: tokens.font.size.sm,
+    color: tokens.color.ink40,
+    fontWeight: tokens.font.weight.medium,
+  },
+  panelRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    minHeight: 48,
+    textAlign: 'center',
+  },
+  panelRowValue: {
+    fontSize: tokens.font.size.md,
+    fontWeight: tokens.font.weight.semibold,
     color: tokens.color.ink,
+  },
+  panelRowMuted: {
+    fontSize: tokens.font.size.sm,
+    color: tokens.color.ink40,
+  },
+  panelRowTag: {
+    fontSize: tokens.font.size.sm,
+    color: tokens.color.ink40,
+    fontWeight: tokens.font.weight.medium,
   },
 
   groupList: {
     display: 'flex',
     flexDirection: 'column',
+    overflowY: "auto",
     gap: 10,
+    height: "300px",
+    direction: "rtl",
+
+    // Scrollbar
+    scrollbarWidth: 'thin',
+    scrollbarColor: `${tokens.color.ink25} transparent`,
+
+    '&::-webkit-scrollbar': {
+      width: 8,
+    },
+    paddingLeft: 5, // space between content and scrollbar
   },
   group: {
     display: 'flex',
+    direction: "ltr",
     alignItems: 'center',
     gap: 14,
     flexWrap: 'wrap',
@@ -102,54 +155,6 @@ export const useStyles = makeStyles()(() => ({
     alignItems: 'center',
     gap: 6,
     fontSize: tokens.font.size.sm,
-  },
-
-  freqGrid: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 14,
-  },
-  freqCard: {
-    flex: '1 1 200px',
-    minWidth: 200,
-    maxWidth: 260,
-    padding: '18px 20px',
-    borderRadius: tokens.radius.control,
-    background: tokens.color.canvas,
-    border: '1px solid rgba(10,36,78,.05)',
-  },
-  freqLabel: {
-    fontSize: tokens.font.size.xl,
-    textAlign: 'center',
-    fontWeight: tokens.font.weight.semibold,
-    letterSpacing: '-.035em',
-    lineHeight: 1.15,
-    color: tokens.color.ink,
-    marginBottom: 14,
-  },
-  freqSystems: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  },
-  freqSystem: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
-  },
-  freqSystemName: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    fontWeight: tokens.font.weight.semibold,
-  },
-  freqSystemTest: {
-    fontSize: tokens.font.size.sm,
-    textAlign: 'center',
-    color: tokens.color.ink40,
-    paddingRight: 18,
   },
 
   rowSkipped: { opacity: 0.5 },

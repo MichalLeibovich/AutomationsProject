@@ -31,15 +31,24 @@ import { SearchField } from '@/components/SearchField/SearchField';
 import { applicationsAtom } from '@/atoms/appAtom';
 import { pushToastAtom } from '@/atoms/toastAtom';
 import { useConfirm } from '@/contexts/ConfirmContext/ConfirmContext';
+import { useRunList, useTestDefinitions } from '@/hooks/useRuns';
 import { useSchedules, useUpcomingOccurrences } from '@/hooks/useSchedules';
 import { he } from '@/locales/he';
 import { scheduleService } from '@/services/scheduleService';
-import type { Schedule, ScheduledOccurrence } from '@/types/schedule.types';
+import type { ScheduledOccurrence } from '@/types/schedule.types';
+import type { TestRun } from '@/types/run.types';
 import { formatTime } from '@/utils/format';
 import { resolveScopeColor } from '@/utils/scope';
 import { useStyles } from './ScheduledAutomationsStyles';
 
 const UPCOMING_WINDOW_HOURS = 24;
+/** Recent runs fetched to find each system's last main-test run — comfortably
+ * more than the number of active systems, so a run further back never hides
+ * a more recent one that happens to sort after it in the page. */
+const RECENT_RUNS_LIMIT = 200;
+
+const minutesUntil = (occurrenceAt: string): number =>
+  Math.round((new Date(occurrenceAt).getTime() - Date.now()) / 60_000);
 
 const occurrenceKey = (occurrence: ScheduledOccurrence): string =>
   `${occurrence.kind}:${occurrence.scheduleId ?? occurrence.extraRunId}:${occurrence.occurrenceAt}`;
@@ -167,6 +176,12 @@ export const ScheduledAutomations = () => {
     reload: reloadUpcoming,
   } = useUpcomingOccurrences(UPCOMING_WINDOW_HOURS);
   const { data: schedules, isLoading: schedulesLoading } = useSchedules();
+  const { data: applicationDefinitions } = useTestDefinitions(null);
+  const { data: recentRuns } = useRunList({
+    sort: 'started_at',
+    direction: 'desc',
+    limit: RECENT_RUNS_LIMIT,
+  });
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -187,30 +202,31 @@ export const ScheduledAutomations = () => {
     );
   }, [occurrences, searchQuery]);
 
-  // Active schedules bucketed by cadence, so "every 2 hours" and "every 4
-  // hours" each list their systems once rather than once per system.
-  const frequencyGroups = useMemo(() => {
-    const order: number[] = [];
-    const buckets = new Map<number, Schedule[]>();
-
-    for (const schedule of schedules ?? []) {
-      if (!schedule.isActive) continue;
-      if (!buckets.has(schedule.everyHours)) {
-        buckets.set(schedule.everyHours, []);
-        order.push(schedule.everyHours);
+  // Each application's main automation id, so a run can be matched back to
+  // "the" system-sanity test rather than any test that happens to be its most
+  // recent.
+  const mainDefinitionByApplication = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const definition of applicationDefinitions ?? []) {
+      if (definition.kind === 'main' && definition.applicationId) {
+        map.set(definition.applicationId, definition.id);
       }
-      buckets.get(schedule.everyHours)!.push(schedule);
     }
+    return map;
+  }, [applicationDefinitions]);
 
-    return order
-      .sort((a, b) => a - b)
-      .map((everyHours) => ({
-        everyHours,
-        schedules: buckets
-          .get(everyHours)!
-          .sort((a, b) => (a.applicationName ?? '').localeCompare(b.applicationName ?? '', 'he')),
-      }));
-  }, [schedules]);
+  // The most recent main-test run per application, manual or scheduled —
+  // `recentRuns` is already newest-first, so the first match per application
+  // is its last run.
+  const lastMainRunByApplication = useMemo(() => {
+    const map = new Map<string, TestRun>();
+    for (const run of recentRuns?.items ?? []) {
+      if (!run.applicationId || map.has(run.applicationId)) continue;
+      if (mainDefinitionByApplication.get(run.applicationId) !== run.testDefinitionId) continue;
+      map.set(run.applicationId, run);
+    }
+    return map;
+  }, [recentRuns, mainDefinitionByApplication]);
 
   // One group per scheduled time slot, so an hour with several applications
   // shows its time once rather than once per application.
@@ -239,6 +255,24 @@ export const ScheduledAutomations = () => {
     }
     return [...seen.values()].sort((a, b) => a.occurrenceAt.localeCompare(b.occurrenceAt));
   }, [occurrences]);
+
+  // One row per actively-scheduled system, carrying everything the three
+  // panels show for it — the single source the frequency/next-run/last-run
+  // columns all read from, so their rows can never drift out of alignment.
+  const systemRows = useMemo(() => {
+    return (schedules ?? [])
+      .filter((schedule) => schedule.isActive)
+      .map((schedule) => ({
+        schedule,
+        nextOccurrence:
+          nextPerApplication.find((occurrence) => occurrence.applicationId === schedule.applicationId) ??
+          null,
+        lastRun: lastMainRunByApplication.get(schedule.applicationId) ?? null,
+      }))
+      .sort((a, b) =>
+        (a.schedule.applicationName ?? '').localeCompare(b.schedule.applicationName ?? '', 'he'),
+      );
+  }, [schedules, nextPerApplication, lastMainRunByApplication]);
 
   const selectedOccurrences = occurrences.filter((occurrence) =>
     selected.has(occurrenceKey(occurrence)),
@@ -331,60 +365,78 @@ export const ScheduledAutomations = () => {
 
   return (
     <div className={classes.root}>
-      <section className={classes.card}>
-        <div className={classes.cardHeader}>
-          <div className={classes.title}>{he.schedule.frequencyTitle}</div>
-        </div>
-
-        {!schedulesLoading && frequencyGroups.length === 0 ? (
-          <EmptyState icon={<UpdateOutlined fontSize="inherit" />} title={he.schedule.noFrequency} />
+      <section className={classes.overview}>
+        {!schedulesLoading && systemRows.length === 0 ? (
+          <EmptyState icon={<UpdateOutlined fontSize="inherit" />} title={he.schedule.noSystems} />
         ) : (
-          <div className={classes.freqGrid}>
-            {frequencyGroups.map((group) => (
-              <div key={group.everyHours} className={classes.freqCard}>
-                <div className={classes.freqLabel}>{he.schedule.everyHours(group.everyHours)}</div>
-                <div className={classes.freqSystems}>
-                  {group.schedules.map((schedule) => (
-                    <div key={schedule.id} className={classes.freqSystem}>
-                      <div className={classes.freqSystemName}>
-                        <IdentityDot color={resolveScopeColor(applications, schedule.applicationId)} />
-                        {schedule.applicationName}
-                      </div>
-                      <div className={classes.freqSystemTest}>{he.schedule.frequencyTestName}</div>
-                    </div>
-                  ))}
+          <div className={classes.overviewRow}>
+            <div className={classes.nameColumn}>
+              <div className={classes.panelHeading} />
+              {systemRows.map(({ schedule }) => (
+                <div key={schedule.id} className={classes.nameRow}>
+                  <IdentityDot color={resolveScopeColor(applications, schedule.applicationId)} />
+                  <span className={classes.nameText}>{schedule.applicationName}</span>
                 </div>
+              ))}
+            </div>
+
+            <div className={classes.panel}>
+              <div className={classes.panelHeading}>
+                <div className={classes.panelHeadingBig}>{he.schedule.frequencyPanelTitle}</div>
+                <div className={classes.panelHeadingSmall}>{he.schedule.frequencyPanelSubtitle}</div>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className={classes.card}>
-        <div className={classes.cardHeader}>
-          <div className={classes.title}>{he.schedule.upcomingTitle}</div>
-        </div>
-
-        {!upcomingLoading && nextPerApplication.length === 0 ? (
-          <EmptyState icon={<UpdateOutlined fontSize="inherit" />} title={he.schedule.noUpcoming} />
-        ) : (
-          <div className={classes.grid}>
-            {nextPerApplication.map((occurrence) => (
-              <div key={occurrence.applicationId} className={classes.tile}>
-                <div className={classes.tileText}>
-                  <div className={classes.tileNameWithDot}>
-                    <IdentityDot
-                      color={resolveScopeColor(applications, occurrence.applicationId)}
-                    />
-                    <span className={classes.tileName}>{occurrence.applicationName}</span>
-                  </div>
-                  <div className={classes.tileTimeWithClock}>
-                    🕒
-                    <div className={cx(classes.tileTime, 'num')}>{formatTime(occurrence.occurrenceAt)}</div>
-                  </div>
+              {systemRows.map(({ schedule }) => (
+                <div key={schedule.id} className={classes.panelRow}>
+                  <span className={classes.panelRowValue}>{he.schedule.everyHours(schedule.everyHours)}</span>
                 </div>
+              ))}
+            </div>
+
+            <div className={classes.panel}>
+              <div className={classes.panelHeading}>
+                <div className={classes.panelHeadingBig}>{he.schedule.nextRunPanelTitle}</div>
+                <div className={classes.panelHeadingSmall}>{he.schedule.nextRunPanelSubtitle}</div>
               </div>
-            ))}
+              {systemRows.map(({ schedule, nextOccurrence }) => (
+                <div key={schedule.id} className={classes.panelRow}>
+                  {nextOccurrence ? (
+                    <>
+                      <span className={cx(classes.panelRowValue, 'num')}>
+                        {formatTime(nextOccurrence.occurrenceAt)}
+                      </span>
+                      <span className={classes.panelRowMuted}>
+                        {he.schedule.timeUntil(minutesUntil(nextOccurrence.occurrenceAt))}
+                      </span>
+                    </>
+                  ) : (
+                    <span className={classes.panelRowMuted}>{he.schedule.noValue}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className={classes.panel}>
+              <div className={classes.panelHeading}>
+                <div className={classes.panelHeadingBig}>{he.schedule.lastRunPanelTitle}</div>
+                <div className={classes.panelHeadingSmall}>{he.schedule.lastRunPanelSubtitle}</div>
+              </div>
+              {systemRows.map(({ schedule, lastRun }) => (
+                <div key={schedule.id} className={classes.panelRow}>
+                  {lastRun ? (
+                    <>
+                      <span className={cx(classes.panelRowValue, 'num')}>{formatTime(lastRun.startedAt)}</span>
+                      <span className={classes.panelRowTag}>
+                        {lastRun.triggerSource === 'manual'
+                          ? he.schedule.lastRunManual
+                          : he.schedule.lastRunAutomatic}
+                      </span>
+                    </>
+                  ) : (
+                    <span className={classes.panelRowMuted}>{he.schedule.noValue}</span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>

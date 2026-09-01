@@ -161,7 +161,39 @@ export const he = {
   },
  
   schedule: {
-    upcomingTitle: 'אוטומציות הבאות שעתידות לרוץ',
+    frequencyPanelTitle: 'תדירות הרצה אוטומטית',
+    frequencyPanelSubtitle: 'של בדיקה ראשית',
+    nextRunPanelTitle: 'הרצה עתידית',
+    nextRunPanelSubtitle: 'של בדיקה ראשית',
+    lastRunPanelTitle: 'הרצה אחרונה',
+    lastRunPanelSubtitle: 'של בדיקה ראשית',
+    lastRunAutomatic: 'אוטומטית',
+    lastRunManual: 'ידנית',
+    noValue: '—',
+    noSystems: 'לא הוגדרו אוטומציות מתוזמנות פעילות',
+    /** "בעוד X דקות" under an hour; "בעוד X שעות (ו-Y דקות)" from an hour up,
+     * so a run a few hours out reads as hours rather than a triple-digit
+     * minute count. */
+    timeUntil: (minutes: number): string => {
+      if (minutes <= 0) return 'בעוד רגע';
+      if (minutes < 60) {
+        if (minutes === 1) return 'בעוד דקה';
+        if (minutes === 2) return 'בעוד דקתיים';
+        const word = HOUR_WORDS[minutes];
+        return word ? `בעוד ${word} דקות` : `בעוד ${minutes} דקות`;
+      }
+
+      const hours = Math.floor(minutes / 60);
+      const remainder = minutes % 60;
+
+      const hoursText =
+        hours === 1 ? 'שעה' : hours === 2 ? 'שעתיים' : `${HOUR_WORDS[hours] ?? hours} שעות`;
+      if (remainder === 0) return `בעוד ${hoursText}`;
+
+      const minutesText =
+        remainder === 1 ? 'דקה' : remainder === 2 ? 'דקתיים' : `${HOUR_WORDS[remainder] ?? remainder} דקות`;
+      return `בעוד ${hoursText} ו-${minutesText}`;
+    },
     next24hTitle: 'תזמון 24 השעות הקרובות',
     searchPlaceholder: 'חיפוש לפי מערכת או זמן',
     noUpcoming: 'אין אוטומציות מתוזמנות בטווח הקרוב',
@@ -191,9 +223,6 @@ export const he = {
     doneEditing: 'סיום עריכה',
     clearSelection: 'ניקוי בחירה',
     selectGroup: (time: string): string => `בחירת כל הריצות בשעה ${time}`,
-    frequencyTitle: 'תדירות הרצת האוטומציות',
-    frequencyTestName: 'בדיקת שפיות - טעינת האתר',
-    noFrequency: 'לא הוגדרו אוטומציות מתוזמנות פעילות',
   },
 
   notifications: {
