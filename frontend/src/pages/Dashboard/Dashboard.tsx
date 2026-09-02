@@ -36,7 +36,7 @@ import { he } from '@/locales/he';
 import { toIsoDate } from '@/utils/format';
 import { tokens } from '@/theme/tokens';
 import type { RangePreset } from '@/types/api.types';
-import { PASS_RATE_TARGET } from '@/utils/constants';
+import { MIN_SELECTABLE_DATE, PASS_RATE_TARGET } from '@/utils/constants';
 import { formatDuration } from '@/utils/format';
 import { useStyles } from './DashboardStyles';
 
@@ -154,15 +154,6 @@ const labelInterval = (pointCount: number): number =>
 const toDateValue = (value: string): Date | null => (value ? parseISO(value) : null);
 
 const toDraftValue = (value: Date | null): string => (value ? format(value, 'yyyy-MM-dd') : '');
-
-/**
- * Earliest date a custom range may start at.
- *
- * There is no run history before this, so offering earlier dates would only ever
- * produce an empty chart. Bounding the picker means the limit is visible as
- * greyed-out cells rather than discovered through a validation error.
- */
-const MIN_SELECTABLE_DATE = new Date(2023, 9, 7);
 
 const CalendarHeader = ({
   currentMonth,

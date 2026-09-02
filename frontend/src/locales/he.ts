@@ -155,6 +155,8 @@ export const he = {
     monthSummary: (total: number, failed: number) => `${total} ריצות · ${failed} נכשלו`,
     prevMonth: 'החודש הקודם',
     nextMonth: 'החודש הבא',
+    chooseMonth: 'בחר חודש',
+    chooseYear: 'בחר שנה',
     failedCount: (count: number) => `${count} נכשלו`,
     more: (count: number) => `עוד ${count}`,
     weekdays: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'],

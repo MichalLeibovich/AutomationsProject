@@ -16,3 +16,12 @@ export const PASS_RATE_TARGET = 75;
 export const SEARCH_DEBOUNCE_MS = 300;
 
 export const LOCALE = 'he-IL';
+
+/**
+ * Earliest date with run history; nothing before this is selectable.
+ *
+ * There is no run history before this, so offering earlier dates would only
+ * ever produce an empty view. Bounding pickers to it means the limit is
+ * visible as greyed-out cells rather than discovered through an empty state.
+ */
+export const MIN_SELECTABLE_DATE = new Date(2023, 9, 7);

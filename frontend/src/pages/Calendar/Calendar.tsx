@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { ButtonBase } from '@mui/material';
+import { ButtonBase, Popover } from '@mui/material';
 import ChevronPrevIcon from '@mui/icons-material/ChevronRightRounded';
 import ChevronNextIcon from '@mui/icons-material/ChevronLeftRounded';
+import { format } from 'date-fns';
+import { he as hebrewLocale } from 'date-fns/locale';
 import { Button } from '@/components/Button/Button';
 import { applicationsAtom } from '@/atoms/appAtom';
 import { openDayPanelAtom } from '@/atoms/panelAtom';
 import { useCalendarMonth } from '@/hooks/useRuns';
 import { he } from '@/locales/he';
 import { tokens } from '@/theme/tokens';
-import { CALENDAR_CHIP_LIMIT } from '@/utils/constants';
+import { CALENDAR_CHIP_LIMIT, MIN_SELECTABLE_DATE } from '@/utils/constants';
 import { formatLongDate, formatMonthYear } from '@/utils/format';
 import { resolveScopeColor } from '@/utils/scope';
 import { useStyles } from './CalendarStyles';
@@ -20,9 +22,37 @@ export const Calendar = () => {
   const openDay = useSetAtom(openDayPanelAtom);
 
   const [cursor, setCursor] = useState(() => new Date());
+  const [jumpMenu, setJumpMenu] = useState<'month' | 'year' | null>(null);
+  const [jumpAnchor, setJumpAnchor] = useState<HTMLButtonElement | null>(null);
   const today = new Date();
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
+
+  const openJumpMenu = (event: React.MouseEvent<HTMLButtonElement>, next: 'month' | 'year') => {
+    setJumpAnchor(event.currentTarget);
+    setJumpMenu(next);
+  };
+  const closeJumpMenu = () => {
+    setJumpMenu(null);
+    setJumpAnchor(null);
+  };
+
+  const isEarliestYear = year === MIN_SELECTABLE_DATE.getFullYear();
+
+  const jumpMonths = Array.from({ length: 12 }, (_, index) => ({
+    month: index,
+    label: format(new Date(year, index, 1), 'LLLL', { locale: hebrewLocale }),
+    // There is no run history before this, so an unreachable month is inert
+    // rather than clickable-then-showing an empty view.
+    disabled: isEarliestYear && index < MIN_SELECTABLE_DATE.getMonth(),
+  }));
+
+  // Bounded at the earliest year with run history, so the list never offers
+  // a year that can only ever be empty.
+  const jumpYears = Array.from(
+    { length: today.getFullYear() - MIN_SELECTABLE_DATE.getFullYear() + 1 },
+    (_, index) => today.getFullYear() - index,
+  );
 
   // The API takes a 1-based month.
   const { data: days } = useCalendarMonth(year, month + 1);
@@ -69,6 +99,85 @@ export const Calendar = () => {
         <Button variant="ghost" size="small" onClick={() => setCursor(new Date())}>
           {he.actions.today}
         </Button>
+
+        <div className={classes.jumpGroup}>
+          <button
+            type="button"
+            className={classes.jumpTrigger}
+            aria-label={he.calendar.chooseMonth}
+            data-testid="calendar-jump-month"
+            onClick={(event) => openJumpMenu(event, 'month')}
+          >
+            {format(cursor, 'LLLL', { locale: hebrewLocale })}
+          </button>
+          <button
+            type="button"
+            className={classes.jumpTrigger}
+            aria-label={he.calendar.chooseYear}
+            data-testid="calendar-jump-year"
+            onClick={(event) => openJumpMenu(event, 'year')}
+          >
+            {format(cursor, 'yyyy', { locale: hebrewLocale })}
+          </button>
+
+          <Popover
+            open={Boolean(jumpMenu)}
+            anchorEl={jumpAnchor}
+            onClose={closeJumpMenu}
+            disableScrollLock
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            slotProps={{ paper: { className: classes.jumpMenu } }}
+          >
+            {jumpMenu === 'month' ? (
+              <div className="calendar-jump-month-grid">
+                {jumpMonths.map(({ month: menuMonth, label, disabled }) => (
+                  <button
+                    key={menuMonth}
+                    type="button"
+                    disabled={disabled}
+                    className={menuMonth === month ? 'is-selected' : undefined}
+                    data-today={
+                      year === today.getFullYear() && menuMonth === today.getMonth()
+                        ? true
+                        : undefined
+                    }
+                    onClick={() => {
+                      setCursor(new Date(year, menuMonth, 1));
+                      closeJumpMenu();
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="calendar-jump-year-list">
+                {jumpYears.map((menuYear) => (
+                  <button
+                    key={menuYear}
+                    type="button"
+                    className={menuYear === year ? 'is-selected' : undefined}
+                    data-today={menuYear === today.getFullYear() ? true : undefined}
+                    onClick={() => {
+                      // The current month may predate the cutoff in the
+                      // earliest year, so it is clamped forward rather than
+                      // landing on a month with no run history.
+                      const clampedMonth =
+                        menuYear === MIN_SELECTABLE_DATE.getFullYear()
+                          ? Math.max(month, MIN_SELECTABLE_DATE.getMonth())
+                          : month;
+                      setCursor(new Date(menuYear, clampedMonth, 1));
+                      closeJumpMenu();
+                    }}
+                  >
+                    {menuYear}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Popover>
+        </div>
 
         {/* Under RTL, "previous" sits on the right and points right. */}
         <div className={classes.navGroup}>
