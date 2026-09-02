@@ -55,8 +55,11 @@ export const DayDetail = ({ runs }: DayDetailProps) => {
 
   return (
     <div className={classes.list}>
-      {byHour.map(([hour, items]) => (
-        <div key={hour} className={classes.hourGroup}>
+      {byHour.map(([hour, items], index) => (
+        <div
+          key={hour}
+          className={cx(classes.hourGroup, index > 0 && classes.hourGroupDivider)}
+        >
           <div className={cx(classes.hourLabel, 'num')}>
             {String(hour).padStart(2, '0')}:00
           </div>

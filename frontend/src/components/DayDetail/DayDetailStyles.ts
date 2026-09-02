@@ -31,6 +31,11 @@ export const useStyles = makeStyles()(() => ({
     gridTemplateColumns: '52px 1fr',
     gap: 12,
   },
+  /** Separates one hour's runs from the next; skipped on the first group. */
+  hourGroupDivider: {
+    paddingTop: 14,
+    borderTop: `1px solid ${tokens.color.line}`,
+  },
   hourLabel: {
     paddingTop: 11,
     fontSize: tokens.font.size.xs,
