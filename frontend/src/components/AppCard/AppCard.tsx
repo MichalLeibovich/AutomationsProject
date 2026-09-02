@@ -23,7 +23,7 @@ export interface AppCardProps {
 }
 
 /** Above this count the secondary list gets its own filter field. */
-const SEARCH_THRESHOLD = 3;
+const SEARCH_THRESHOLD = 1;
 
 export const AppCard = ({
   title,
@@ -92,7 +92,7 @@ export const AppCard = ({
   const secondaryBody = (
     <div className={classes.secondaryList}>
       {secondary.length > SEARCH_THRESHOLD && (
-        <div className={wide ? classes.fullSpan : undefined}>
+        <div className={cx(classes.searchField, wide && classes.fullSpan)}>
           <SearchField
             value={query}
             onChange={setQuery}

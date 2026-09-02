@@ -93,6 +93,8 @@ export const useStyles = makeStyles<StyleParams>()((theme, { color, wide }) => (
 
   fullSpan: { gridColumn: '1 / -1' },
 
+  searchField: { maxWidth: 400 },
+
   emptyNote: {
     gridColumn: '1 / -1',
     padding: '14px 12px',
