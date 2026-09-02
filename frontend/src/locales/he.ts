@@ -70,8 +70,8 @@ export const he = {
  
   tests: {
     secondary: 'בדיקות משניות',
-    filterSecondary: 'סינון בדיקות משניות',
-    filterAutomations: 'סינון אוטומציות',
+    filterSecondary: 'חיפוש לפי שם בדיקה משנית...',
+    filterAutomations: 'חיפוש לפי שם אוטומציה...',
     notRunThisSession: 'טרם הורצה במפגש הנוכחי',
     sharedAutomation: 'אוטומציה משותפת, לא משויכת לאפליקציה',
     waiting: 'ממתינה',
@@ -128,7 +128,7 @@ export const he = {
     title: 'היסטוריית ריצות',
     count: (shown: number, total: number, scope: string) =>
       `${shown} מתוך ${total} ריצות · ${scope}`,
-    searchPlaceholder: 'חיפוש לפי מערכת, בדיקה, מפעיל או שגיאה',
+    searchPlaceholder: 'חיפוש לפי מערכת, בדיקה, מפעיל או שגיאה...',
     all: 'הכל',
     columns: {
       scope: 'תחום',
@@ -204,7 +204,7 @@ export const he = {
       return `בעוד ${hoursText} ו-${minutesText}`;
     },
     next24hTitle: 'תזמון 24 השעות הקרובות',
-    searchPlaceholder: 'חיפוש לפי מערכת או זמן',
+    searchPlaceholder: 'חיפוש לפי מערכת או זמן...',
     noUpcoming: 'אין אוטומציות מתוזמנות בטווח הקרוב',
     skipped: 'בוטל',
     restore: 'שחזור',
