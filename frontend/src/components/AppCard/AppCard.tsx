@@ -89,15 +89,13 @@ export const AppCard = ({
     );
   };
 
+  const showSearch = secondary.length > SEARCH_THRESHOLD;
+
   const secondaryBody = (
     <div className={classes.secondaryList}>
-      {secondary.length > SEARCH_THRESHOLD && (
+      {showSearch && !isFlat && (
         <div className={cx(classes.searchField, wide && classes.fullSpan)}>
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            placeholder={isFlat ? he.tests.filterAutomations : he.tests.filterSecondary}
-          />
+          <SearchField value={query} onChange={setQuery} placeholder={he.tests.filterSecondary} />
         </div>
       )}
 
@@ -117,6 +115,12 @@ export const AppCard = ({
           <h2 className={classes.title}>{title}</h2>
           <div className={cx(classes.subtitle, 'num')}>{summary}</div>
         </div>
+
+        {isFlat && showSearch && (
+          <div className={classes.headerSearchField}>
+            <SearchField value={query} onChange={setQuery} placeholder={he.tests.filterAutomations} />
+          </div>
+        )}
       </header>
 
       {mainTest && renderRow(mainTest)}

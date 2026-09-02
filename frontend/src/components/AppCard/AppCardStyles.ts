@@ -39,6 +39,8 @@ export const useStyles = makeStyles<StyleParams>()((theme, { color, wide }) => (
 
   headerText: { flex: 1, minWidth: 0 },
 
+  headerSearchField: { flexShrink: 0, width: 350 },
+
   title: {
     fontSize: tokens.font.size.md,
     fontWeight: tokens.font.weight.semibold,
