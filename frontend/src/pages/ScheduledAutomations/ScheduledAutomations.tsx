@@ -28,9 +28,11 @@ import { Button } from '@/components/Button/Button';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { IdentityDot } from '@/components/IdentityDot/IdentityDot';
 import { SearchField } from '@/components/SearchField/SearchField';
+import { StatusBadge } from '@/components/StatusBadge/StatusBadge';
 import { applicationsAtom } from '@/atoms/appAtom';
 import { pushToastAtom } from '@/atoms/toastAtom';
 import { useConfirm } from '@/contexts/ConfirmContext/ConfirmContext';
+import { occurrenceKey, useOccurrenceRunStatuses } from '@/hooks/useOccurrenceRunStatuses';
 import { useRunList, useTestDefinitions } from '@/hooks/useRuns';
 import { useSchedules, useUpcomingOccurrences } from '@/hooks/useSchedules';
 import { he } from '@/locales/he';
@@ -54,9 +56,6 @@ const FREQUENCY_OPTIONS = [1, 2, 3, 4, 6, 8, 12, 24];
 
 const minutesUntil = (occurrenceAt: string): number =>
   Math.round((new Date(occurrenceAt).getTime() - Date.now()) / 60_000);
-
-const occurrenceKey = (occurrence: ScheduledOccurrence): string =>
-  `${occurrence.kind}:${occurrence.scheduleId ?? occurrence.extraRunId}:${occurrence.occurrenceAt}`;
 
 /**
  * Month/year quick-jump calendar header, matching the one on the dashboard's
@@ -186,7 +185,10 @@ export const ScheduledAutomations = () => {
     reload: reloadSchedules,
   } = useSchedules();
   const { data: applicationDefinitions } = useTestDefinitions(null);
-  const { data: recentRuns } = useRunList({
+  const {
+    data: recentRuns,
+    reload: reloadRecentRuns,
+  } = useRunList({
     sort: 'started_at',
     direction: 'desc',
     limit: RECENT_RUNS_LIMIT,
@@ -254,6 +256,12 @@ export const ScheduledAutomations = () => {
 
     return order.map((occurrenceAt) => ({ occurrenceAt, items: buckets.get(occurrenceAt)! }));
   }, [searchedOccurrences]);
+
+  const { statusByKey, hiddenOccurrenceAts } = useOccurrenceRunStatuses(
+    occurrenceGroups,
+    recentRuns?.items ?? [],
+    reloadRecentRuns,
+  );
 
   // The headline "about to run" tiles: the single next non-cancelled
   // occurrence per application, not the full 24h list.
@@ -527,7 +535,9 @@ export const ScheduledAutomations = () => {
           <EmptyState icon={<UpdateOutlined fontSize="inherit" />} title={he.schedule.noUpcoming} />
         ) : (
           <div className={classes.groupList}>
-            {occurrenceGroups.map((group) => (
+            {occurrenceGroups
+              .filter((group) => !hiddenOccurrenceAts.has(group.occurrenceAt))
+              .map((group) => (
               <div key={group.occurrenceAt} className={classes.group}>
                 {editMode && group.items.some((occurrence) => !occurrence.skipped) && (
                   <input
@@ -564,6 +574,9 @@ export const ScheduledAutomations = () => {
                           color={resolveScopeColor(applications, occurrence.applicationId)}
                         />
                         {occurrence.applicationName}
+                        {!occurrence.skipped && statusByKey.has(key) && (
+                          <StatusBadge status={statusByKey.get(key)!} />
+                        )}
                         {occurrence.skipped && (
                           <span className={classes.skippedLabel}>{he.schedule.skipped}</span>
                         )}
